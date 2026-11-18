@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Keycloak demo application</h1>
+<p>This sample client authenticates users with <strong>Keycloak</strong> using the OpenID Connect
+authorization code flow with PKCE, then calls a REST API whose permissions are evaluated by
+Keycloak Authorization Services.</p>
+{% if user %}
+  <p>You are signed in as <strong>{{ user.username }}</strong>. <a href="{{ url_for('profile') }}">Open your profile</a>.</p>
+{% else %}
+  <p><a class="btn primary" href="{{ url_for('login') }}">Sign in with Keycloak</a></p>
+  <h2>Demo accounts</h2>
+  <table>
+    <tr><th>User</th><th>Group</th><th>Realm roles</th><th>Can do</th></tr>
+    <tr><td>alice</td><td>employees</td><td>app-user</td><td>read reports</td></tr>
+    <tr><td>bob</td><td>managers</td><td>app-admin (includes app-user)</td><td>read and write reports, admin panel</td></tr>
+  </table>
+  <p class="muted">Passwords are set through <code>DEMO_USER_PASSWORD</code> / <code>DEMO_ADMIN_PASSWORD</code> in your <code>.env</code> file.
+  You can also register a new account on the login page; it joins the <em>employees</em> group.</p>
+{% endif %}
+{% endblock %}

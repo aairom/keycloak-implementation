@@ -1,0 +1,34 @@
+# Online / production overlay: adds Caddy (automatic HTTPS via Let's Encrypt) in front of the stack and
+# makes Keycloak trust the proxy's X-Forwarded-* headers.
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+# Required .env values: KC_PUBLIC_HOST, APP_PUBLIC_HOST, API_PUBLIC_HOST, ACME_EMAIL and https:// URLs.
+services:
+  keycloak:
+    environment:
+      KC_PROXY_HEADERS: xforwarded
+
+  caddy:
+    image: docker.io/library/caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - keycloak
+      - webapp
+      - api
+    environment:
+      KC_PUBLIC_HOST: ${KC_PUBLIC_HOST:?set KC_PUBLIC_HOST in .env}
+      APP_PUBLIC_HOST: ${APP_PUBLIC_HOST:?set APP_PUBLIC_HOST in .env}
+      API_PUBLIC_HOST: ${API_PUBLIC_HOST:?set API_PUBLIC_HOST in .env}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env}
+      ADMIN_ALLOWED_CIDR: ${ADMIN_ALLOWED_CIDR:-0.0.0.0/0 ::/0}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  caddy-data:
+  caddy-config:

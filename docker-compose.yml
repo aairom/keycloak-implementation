@@ -1,0 +1,114 @@
+# Keycloak demo stack: PostgreSQL + Keycloak + REST API (resource server) + web app (OIDC client).
+# Works with `docker compose` and `podman compose`. All values come from .env (see .env.example).
+#   Local:   scripts/start.sh
+#   Online:  docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+name: keycloak-demo
+
+services:
+  postgres:
+    image: docker.io/library/postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  keycloak:
+    build:
+      context: ./keycloak
+      args:
+        KC_IMAGE_TAG: ${KEYCLOAK_VERSION:-26.8.2}
+    image: keycloak-demo/keycloak:${KEYCLOAK_VERSION:-26.8.2}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Database
+      KC_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      KC_DB_USERNAME: ${POSTGRES_USER}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      # Public URL (fixes the token issuer) + dynamic back channel for container-to-container calls
+      KC_HOSTNAME: ${KC_HOSTNAME:?set KC_HOSTNAME in .env}
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HTTP_ENABLED: "true"
+      # First-start admin account in the master realm (ignored once an admin exists)
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME:?set KC_BOOTSTRAP_ADMIN_USERNAME in .env}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD:?set KC_BOOTSTRAP_ADMIN_PASSWORD in .env}
+      # Placeholders consumed by keycloak/realm/demo-realm.json at import time
+      DEMO_REALM: ${DEMO_REALM:-demo}
+      DEMO_USER_PASSWORD: ${DEMO_USER_PASSWORD:?set DEMO_USER_PASSWORD in .env}
+      DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:?set DEMO_ADMIN_PASSWORD in .env}
+      DEMO_REGISTRATION_ALLOWED: ${DEMO_REGISTRATION_ALLOWED:-true}
+      DEMO_CLI_ENABLED: ${DEMO_CLI_ENABLED:-true}
+      WEBAPP_CLIENT_SECRET: ${WEBAPP_CLIENT_SECRET:?set WEBAPP_CLIENT_SECRET in .env}
+      API_CLIENT_SECRET: ${API_CLIENT_SECRET:?set API_CLIENT_SECRET in .env}
+      SERVICE_CLIENT_SECRET: ${SERVICE_CLIENT_SECRET:?set SERVICE_CLIENT_SECRET in .env}
+      WEBAPP_PUBLIC_URL: ${WEBAPP_PUBLIC_URL:?set WEBAPP_PUBLIC_URL in .env}
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${KEYCLOAK_PORT:-8080}:8080"
+    healthcheck:
+      # Management interface (port 9000) health endpoint; the image has no curl, so use bash /dev/tcp.
+      test:
+        - CMD-SHELL
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/9000 &&
+          printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+          grep -q '"status": "UP"' <&3
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  api:
+    build: ./api
+    image: keycloak-demo/api:1.0.0
+    restart: unless-stopped
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    environment:
+      OIDC_DISCOVERY_URL: http://keycloak:8080/realms/${DEMO_REALM:-demo}/.well-known/openid-configuration
+      OIDC_ISSUER: ${KC_HOSTNAME}/realms/${DEMO_REALM:-demo}
+      API_AUDIENCE: demo-api
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${API_PORT:-8082}:8082"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8082/api/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  webapp:
+    build: ./webapp
+    image: keycloak-demo/webapp:1.0.0
+    restart: unless-stopped
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    environment:
+      OIDC_DISCOVERY_URL: http://keycloak:8080/realms/${DEMO_REALM:-demo}/.well-known/openid-configuration
+      OIDC_CLIENT_ID: demo-webapp
+      OIDC_CLIENT_SECRET: ${WEBAPP_CLIENT_SECRET}
+      WEBAPP_SESSION_SECRET: ${WEBAPP_SESSION_SECRET:?set WEBAPP_SESSION_SECRET in .env}
+      WEBAPP_PUBLIC_URL: ${WEBAPP_PUBLIC_URL}
+      API_BASE_URL: http://api:8082
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${WEBAPP_PORT:-8081}:8081"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8081/healthz', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres-data:

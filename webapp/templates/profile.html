@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Profile - Keycloak demo{% endblock %}
+{% block content %}
+<h1>Hello, {{ user.name or user.username }}</h1>
+<div class="grid">
+  <section class="card">
+    <h2>Identity</h2>
+    <dl>
+      <dt>Username</dt><dd>{{ id_claims.get('preferred_username') }}</dd>
+      <dt>E-mail</dt><dd>{{ id_claims.get('email') or '-' }}</dd>
+      <dt>Subject</dt><dd><code>{{ id_claims.get('sub') }}</code></dd>
+      <dt>Groups</dt><dd>{{ groups|join(', ') or '-' }}</dd>
+      <dt>Realm roles</dt><dd>{% for r in roles %}<span class="tag">{{ r }}</span>{% else %}-{% endfor %}</dd>
+      <dt>Access token expires in</dt><dd>{{ expires_in }} s</dd>
+    </dl>
+  </section>
+  <section class="card">
+    <h2>Call the protected API</h2>
+    <p class="muted">Each button sends the access token to the API; Keycloak decides if it is allowed.</p>
+    {% for key, call in api_calls.items() %}
+    <form method="post" action="{{ url_for('api_call', key=key) }}">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button type="submit">{{ call[2] }} <code>{{ call[0] }} {{ call[1] }}</code></button>
+    </form>
+    {% endfor %}
+  </section>
+</div>
+{% if api_result %}
+<section class="card result {{ 'ok' if api_result.status in (200, 201) else 'denied' }}">
+  <h2>{{ api_result.label }}</h2>
+  <p><code>{{ api_result.request }}</code> &rarr; <strong>HTTP {{ api_result.status }}</strong></p>
+  <pre>{{ api_result.body | tojson(indent=2) }}</pre>
+</section>
+{% endif %}
+<details class="card">
+  <summary>ID token claims</summary>
+  <pre>{{ id_claims | tojson(indent=2) }}</pre>
+</details>
+<details class="card">
+  <summary>Access token claims</summary>
+  <pre>{{ access_claims | tojson(indent=2) }}</pre>
+</details>
+{% endblock %}

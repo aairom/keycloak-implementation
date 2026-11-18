@@ -1,0 +1,35 @@
+# Reverse proxy with automatic HTTPS (Let's Encrypt). Hostnames come from environment variables.
+{
+	email {$ACME_EMAIL}
+}
+
+(security_headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+}
+
+# Keycloak. The admin console and the master realm can be limited to trusted networks
+# with ADMIN_ALLOWED_CIDR (space-separated CIDRs); default allows everyone.
+{$KC_PUBLIC_HOST} {
+	import security_headers
+	@admin_blocked {
+		path /admin* /realms/master*
+		not remote_ip {$ADMIN_ALLOWED_CIDR}
+	}
+	respond @admin_blocked "Forbidden" 403
+	reverse_proxy keycloak:8080
+}
+
+{$APP_PUBLIC_HOST} {
+	import security_headers
+	reverse_proxy webapp:8081
+}
+
+{$API_PUBLIC_HOST} {
+	import security_headers
+	reverse_proxy api:8082
+}

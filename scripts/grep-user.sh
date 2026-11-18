@@ -1,0 +1,1 @@
+grep '^DEMO_USER_PASSWORD=' .env

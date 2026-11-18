@@ -1,0 +1,311 @@
+{
+  "realm": "${DEMO_REALM}",
+  "displayName": "Demo Realm",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": "${DEMO_REGISTRATION_ALLOWED}",
+  "registrationEmailAsUsername": false,
+  "rememberMe": true,
+  "verifyEmail": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "passwordPolicy": "length(8) and notUsername",
+  "bruteForceProtected": true,
+  "failureFactor": 5,
+  "waitIncrementSeconds": 60,
+  "maxFailureWaitSeconds": 900,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "loginTheme": "demo",
+  "internationalizationEnabled": true,
+  "supportedLocales": ["en", "fr", "de", "es"],
+  "defaultLocale": "en",
+  "eventsEnabled": true,
+  "eventsListeners": ["jboss-logging"],
+  "adminEventsEnabled": true,
+  "adminEventsDetailsEnabled": false,
+  "defaultGroups": ["/employees"],
+  "roles": {
+    "realm": [
+      {
+        "name": "app-user",
+        "description": "Regular application user (read access)"
+      },
+      {
+        "name": "app-service",
+        "description": "Machine identity: may read the service data endpoint only"
+      },
+      {
+        "name": "app-admin",
+        "description": "Application administrator (read, write, admin panel)",
+        "composite": true,
+        "composites": { "realm": ["app-user"] }
+      }
+    ]
+  },
+  "groups": [
+    { "name": "employees", "realmRoles": ["app-user"] },
+    { "name": "managers", "realmRoles": ["app-admin"] }
+  ],
+  "users": [
+    {
+      "username": "alice",
+      "email": "alice@example.com",
+      "firstName": "Alice",
+      "lastName": "Employee",
+      "enabled": true,
+      "emailVerified": true,
+      "groups": ["/employees"],
+      "credentials": [
+        { "type": "password", "value": "${DEMO_USER_PASSWORD}", "temporary": false }
+      ]
+    },
+    {
+      "username": "bob",
+      "email": "bob@example.com",
+      "firstName": "Bob",
+      "lastName": "Manager",
+      "enabled": true,
+      "emailVerified": true,
+      "groups": ["/managers"],
+      "credentials": [
+        { "type": "password", "value": "${DEMO_ADMIN_PASSWORD}", "temporary": false }
+      ]
+    },
+    {
+      "username": "service-account-demo-service",
+      "enabled": true,
+      "serviceAccountClientId": "demo-service",
+      "realmRoles": ["app-service"]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "demo-service",
+      "name": "Demo backend service",
+      "description": "Confidential client for service-to-service calls: client credentials grant, no user involved",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${SERVICE_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": true,
+      "protocolMappers": [
+        {
+          "name": "demo-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "demo-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "demo-cli",
+      "name": "Demo CLI / test client",
+      "description": "Public client with the password grant, used by scripts/verify.sh and the curl examples. Disable in production (DEMO_CLI_ENABLED=false).",
+      "enabled": "${DEMO_CLI_ENABLED}",
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": true,
+      "protocolMappers": [
+        {
+          "name": "demo-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "demo-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "demo-webapp",
+      "name": "Demo Web Application",
+      "description": "Confidential OIDC client: authorization code flow with PKCE",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${WEBAPP_CLIENT_SECRET}",
+      "rootUrl": "${WEBAPP_PUBLIC_URL}",
+      "baseUrl": "/",
+      "redirectUris": ["${WEBAPP_PUBLIC_URL}/callback"],
+      "webOrigins": ["${WEBAPP_PUBLIC_URL}"],
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": true,
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "${WEBAPP_PUBLIC_URL}/"
+      },
+      "protocolMappers": [
+        {
+          "name": "demo-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "demo-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "groups",
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "demo-api",
+      "name": "Demo REST API (resource server)",
+      "description": "Resource server with Keycloak Authorization Services (resources, scopes, policies, permissions)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${API_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "authorizationServicesEnabled": true,
+      "authorizationSettings": {
+        "allowRemoteResourceManagement": false,
+        "policyEnforcementMode": "ENFORCING",
+        "decisionStrategy": "UNANIMOUS",
+        "resources": [
+          {
+            "name": "reports",
+            "displayName": "Reports",
+            "type": "urn:demo-api:resources:reports",
+            "ownerManagedAccess": false,
+            "uris": ["/api/reports"],
+            "scopes": [{ "name": "read" }, { "name": "write" }]
+          },
+          {
+            "name": "admin-panel",
+            "displayName": "Admin panel",
+            "type": "urn:demo-api:resources:admin",
+            "ownerManagedAccess": false,
+            "uris": ["/api/admin"],
+            "scopes": [{ "name": "access" }]
+          },
+          {
+            "name": "service-data",
+            "displayName": "Service data",
+            "type": "urn:demo-api:resources:service",
+            "ownerManagedAccess": false,
+            "uris": ["/api/service/data"],
+            "scopes": [{ "name": "read" }]
+          }
+        ],
+        "scopes": [{ "name": "read" }, { "name": "write" }, { "name": "access" }],
+        "policies": [
+          {
+            "name": "employee-policy",
+            "description": "Grants access to users with the app-user realm role",
+            "type": "role",
+            "logic": "POSITIVE",
+            "decisionStrategy": "UNANIMOUS",
+            "config": { "roles": "[{\"id\":\"app-user\",\"required\":false}]" }
+          },
+          {
+            "name": "manager-policy",
+            "description": "Grants access to users with the app-admin realm role",
+            "type": "role",
+            "logic": "POSITIVE",
+            "decisionStrategy": "UNANIMOUS",
+            "config": { "roles": "[{\"id\":\"app-admin\",\"required\":false}]" }
+          },
+          {
+            "name": "service-policy",
+            "description": "Grants access to the service account (realm role app-service)",
+            "type": "role",
+            "logic": "POSITIVE",
+            "decisionStrategy": "UNANIMOUS",
+            "config": { "roles": "[{\"id\":\"app-service\",\"required\":false}]" }
+          },
+          {
+            "name": "read-service-data-permission",
+            "type": "scope",
+            "logic": "POSITIVE",
+            "decisionStrategy": "UNANIMOUS",
+            "config": {
+              "resources": "[\"service-data\"]",
+              "scopes": "[\"read\"]",
+              "applyPolicies": "[\"service-policy\"]"
+            }
+          },
+          {
+            "name": "read-reports-permission",
+            "type": "scope",
+            "logic": "POSITIVE",
+            "decisionStrategy": "UNANIMOUS",
+            "config": {
+              "resources": "[\"reports\"]",
+              "scopes": "[\"read\"]",
+              "applyPolicies": "[\"employee-policy\"]"
+            }
+          },
+          {
+            "name": "write-reports-permission",
+            "type": "scope",
+            "logic": "POSITIVE",
+            "decisionStrategy": "UNANIMOUS",
+            "config": {
+              "resources": "[\"reports\"]",
+              "scopes": "[\"write\"]",
+              "applyPolicies": "[\"manager-policy\"]"
+            }
+          },
+          {
+            "name": "admin-panel-permission",
+            "type": "scope",
+            "logic": "POSITIVE",
+            "decisionStrategy": "UNANIMOUS",
+            "config": {
+              "resources": "[\"admin-panel\"]",
+              "scopes": "[\"access\"]",
+              "applyPolicies": "[\"manager-policy\"]"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

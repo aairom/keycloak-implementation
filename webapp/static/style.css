@@ -1,0 +1,30 @@
+:root { --blue: #0f62fe; --bg: #f4f4f4; --text: #161616; --muted: #6f6f6f; }
+* { box-sizing: border-box; }
+body { margin: 0; font: 15px/1.5 -apple-system, "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--text); }
+header { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1.5rem; background: #161616; color: #fff; }
+header a { color: #fff; text-decoration: none; margin-left: 1rem; }
+.brand { font-weight: 600; margin-left: 0 !important; }
+.who { margin-left: 1rem; color: #c6c6c6; }
+main { max-width: 960px; margin: 1.5rem auto; padding: 0 1rem; }
+footer { text-align: center; color: var(--muted); font-size: 12px; padding: 2rem 0; }
+.btn, button { display: inline-block; padding: 0.5rem 1rem; border: 1px solid var(--blue); border-radius: 2px; background: transparent; color: var(--blue); cursor: pointer; font: inherit; }
+header .btn { color: #fff; border-color: #fff; }
+.btn.primary, button { background: var(--blue); color: #fff; }
+button { display: block; width: 100%; text-align: left; margin-bottom: 0.5rem; }
+button code { float: right; background: rgba(255,255,255,0.2); color: #fff; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; }
+.card { background: #fff; padding: 1rem 1.25rem; margin-bottom: 1rem; border-top: 3px solid var(--blue); }
+.card h2 { margin-top: 0; font-size: 1.1rem; }
+.result.ok { border-top-color: #24a148; }
+.result.denied { border-top-color: #da1e28; }
+dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 1rem; margin: 0; }
+dt { color: var(--muted); }
+dd { margin: 0; word-break: break-all; }
+table { border-collapse: collapse; width: 100%; background: #fff; }
+th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid #e0e0e0; }
+pre { overflow: auto; background: #f4f4f4; padding: 0.75rem; font-size: 12px; }
+code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+.tag { display: inline-block; background: #d0e2ff; color: #0043ce; padding: 0 0.5rem; border-radius: 1rem; margin-right: 0.25rem; }
+.muted { color: var(--muted); }
+.flash { padding: 0.75rem 1rem; background: #fff1f1; border-left: 4px solid #da1e28; }
+summary { cursor: pointer; font-weight: 600; }

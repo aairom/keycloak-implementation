@@ -1,0 +1,8 @@
+# Development / test environment: union of webapp/ and api/ requirements plus the test runner.
+# Services ship their own pinned requirements.txt for their container images.
+Flask==3.1.3
+Authlib==1.9.8
+PyJWT[crypto]==2.15.1
+requests==2.34.2
+gunicorn==27.0.1
+pytest==9.2.0

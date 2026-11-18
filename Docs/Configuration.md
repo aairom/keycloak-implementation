@@ -49,6 +49,7 @@ The realm is imported **only on first start** (`IGNORE_EXISTING`). Changing thes
 | `WEBAPP_CLIENT_SECRET` | random | Secret of confidential client `demo-webapp` |
 | `API_CLIENT_SECRET` | random | Secret of resource server client `demo-api` |
 | `SERVICE_CLIENT_SECRET` | random | Secret of client `demo-service` (client credentials grant, used by `service/service_client.py` and `verify.sh`) |
+| `LOGAPP_CLIENT_SECRET` | random | Secret of client `demo-logapp` (dashboard login and its service account) |
 
 ### Applications
 
@@ -71,11 +72,32 @@ Variables set by compose inside the containers (not in `.env`):
 | Keycloak | `KC_HOSTNAME_BACKCHANNEL_DYNAMIC` | `true` | Containers reach Keycloak by service name while tokens keep the public issuer |
 | Keycloak | `KC_PROXY_HEADERS` | `xforwarded` (prod overlay) | Trust Caddy's `X-Forwarded-*` headers |
 
+### Log dashboard (`logapp/`)
+
+| Variable | Default | Description |
+|---|---|---|
+| `LOGAPP_PUBLIC_URL` | `http://localhost:8083` | Public URL; registered as redirect URI `<url>/callback`, web origin and post-logout URI |
+| `LOGAPP_PORT` | `8083` | Host port |
+| `LOGAPP_SESSION_SECRET` | random | Signs the dashboard session cookie |
+| `LOGAPP_ADMIN_ROLE` | `app-admin` | Realm role that opens the admin panel and sees every user's events |
+| `LOGAPP_SYNC_INTERVAL` | `10` | Seconds between pulls of Keycloak's event log |
+| `LOGAPP_EXPIRY_WARN_SECONDS` | `60` | Remaining token lifetime that triggers `TOKEN_EXPIRY_WARNING` and a refresh |
+| `LOGAPP_PAGE_SIZE` | `25` | Rows per page |
+| `LOGAPP_TRUST_PROXY` | `false` | Trust `X-Forwarded-*` (set to `true` by `docker-compose.prod.yml`) |
+
+Set by compose inside the container: `DATABASE_URL` (PostgreSQL, schema `logapp` in the Keycloak database, created on start),
+`OIDC_DISCOVERY_URL`, `OIDC_CLIENT_ID=demo-logapp`, `OIDC_CLIENT_SECRET`, `API_BASE_URL`, `KEYCLOAK_INTERNAL_URL`.
+Without `DATABASE_URL` pointing at PostgreSQL the app also runs on SQLite (`sqlite:///path.db`), which the unit tests use.
+
+Design notes: tokens are kept only in the process memory (`TokenVault`), so gunicorn runs **one worker with 8 threads**;
+after a restart users sign in again. The Keycloak events API needs the audience `<host>/admin/realms/<realm>`, which the
+optional client scope `kc-admin-api` adds; the app requests it only for the sync.
+
 ### Online deployment (`docker-compose.prod.yml`)
 
 | Variable | Description |
 |---|---|
-| `KC_PUBLIC_HOST`, `APP_PUBLIC_HOST`, `API_PUBLIC_HOST` | DNS names (no scheme) served by Caddy; each gets a Let's Encrypt certificate |
+| `KC_PUBLIC_HOST`, `APP_PUBLIC_HOST`, `API_PUBLIC_HOST`, `LOGAPP_PUBLIC_HOST` | DNS names (no scheme) served by Caddy; each gets a Let's Encrypt certificate |
 | `ACME_EMAIL` | Contact e-mail for Let's Encrypt |
 | `ADMIN_ALLOWED_CIDR` | Quoted, space-separated CIDRs allowed to reach `/admin*` and `/realms/master*` (default: everyone) |
 
@@ -93,6 +115,8 @@ Variables set by compose inside the containers (not in `.env`):
 | Users | `alice` (employees), `bob` (managers) - e-mail verified, non-temporary passwords from `.env` |
 | Client `demo-webapp` | Confidential, authorization code + PKCE S256, exact redirect URI, no implicit/password grants; mappers: audience `demo-api`, `groups` |
 | Client `demo-api` | Resource server with Authorization Services, `ENFORCING`, decision strategy `UNANIMOUS` |
+| Client `demo-logapp` | Confidential, authorization code + PKCE S256, service account with only `realm-management: view-events`; optional scope `kc-admin-api` (audience for the Admin REST API); default scopes listed explicitly |
+| Realm events | `eventsEnabled`, 25 explicit `enabledEventTypes` (including `LOGOUT`, `REFRESH_TOKEN`, `CODE_TO_TOKEN`, `CLIENT_LOGIN`), `adminEventsEnabled` |
 | Client `demo-service` | Confidential, **client credentials only** (no browser flows); its service account has realm role `app-service`; audience mapper `demo-api` |
 | Client `demo-cli` | Public, password grant, for scripts only |
 | Resources / scopes | `reports` (`read`, `write`), `admin-panel` (`access`), `service-data` (`read`) |

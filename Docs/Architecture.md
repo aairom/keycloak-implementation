@@ -12,7 +12,8 @@ flowchart TB
         W["webapp (Flask + Authlib)<br/>confidential OIDC client demo-webapp<br/>:8081"]
         A["api (Flask + PyJWT)<br/>resource server demo-api<br/>:8082"]
         K["keycloak 26.8.2 (optimized build)<br/>realm demo, theme demo<br/>:8080 / management :9000"]
-        P[("postgres 17<br/>volume postgres-data")]
+        L["logapp (Flask + Authlib)<br/>OIDC client demo-logapp<br/>log dashboard :8083"]
+        P[("postgres 17<br/>volume postgres-data<br/>schemas public + logapp")]
         C{{"caddy (prod overlay)<br/>HTTPS + headers + admin allow-list<br/>:80 / :443"}}
     end
     B -->|browser| C
@@ -25,6 +26,11 @@ flowchart TB
     W -->|"Bearer token"| A
     A -->|"JWKS, UMA decision"| K
     K -->|JDBC| P
+    B -->|"dashboard"| L
+    L -->|"login, refresh, admin REST view-events"| K
+    L -->|"s2s Bearer"| A
+    L -->|"events, sessions, audit"| P
+    C -->|"logs host"| L
 ```
 
 | Component | Technology | Responsibility | State |
@@ -33,6 +39,7 @@ flowchart TB
 | `postgres` | PostgreSQL 17 | Persists realms, users, sessions, events | Named volume |
 | `webapp` | Flask 3, Authlib, gunicorn | Browser-facing OIDC client; logs users in, shows claims, calls the API with the user's token | Stateless (signed cookie) |
 | `api` | Flask 3, PyJWT, gunicorn | OAuth 2.0 resource server; validates tokens locally and asks Keycloak for permission decisions | Stateless |
+| `logapp` | Flask 3, Authlib, PyJWT, psycopg 3, gunicorn (1 worker, 8 threads) | OIDC client that records auth, API, token and service-to-service events, pulls Keycloak's event log, serves the filterable dashboard and the admin statistics | PostgreSQL schema `logapp` (tokens only in process memory) |
 | `caddy` (online only) | Caddy 2 | TLS termination with automatic certificates, security headers, admin allow-list | Volumes `caddy-data`, `caddy-config` |
 
 ## Authentication flow (OIDC authorization code + PKCE)
@@ -122,6 +129,34 @@ sequenceDiagram
 No user and no browser are involved; the same API code path and the same policy engine decide, which is why the
 service account gets 403 on `/api/reports` and `/api/admin`.
 
+## Log dashboard
+
+```mermaid
+flowchart LR
+    R[request] --> BR["before_request: start timer"]
+    BR --> H[route handler]
+    H --> AR["after_request: HTTP_REQUEST<br/>method, path, status, duration"]
+    H -->|"callback / logout / refresh"| AU["LOGIN, LOGOUT, TOKEN_REFRESH,<br/>TOKEN_EXPIRY_WARNING, ACCESS_DENIED"]
+    H -->|"api-call, s2s"| AP["API_CALL, S2S_REQUEST"]
+    AR --> S[("logapp.app_events")]
+    AU --> S
+    AP --> S
+    AU --> US[("user_sessions / audit_log")]
+    KE["Keycloak /admin/realms/demo/events<br/>(service account, view-events)"] -->|"sync every N s, dedupe_key"| S
+    S --> D["/dashboard and /events.json<br/>filters + pagination"]
+    S --> ST["/admin statistics"]
+```
+
+* **Two sources, one table.** `source=app` rows are written by the Flask hooks; `source=keycloak` rows come from the
+  events REST endpoint (`LOGIN`, `LOGIN_ERROR`, `REFRESH_TOKEN`, `CODE_TO_TOKEN`, `CLIENT_LOGIN`, ...). A content hash
+  (`dedupe_key`) makes re-reading overlapping windows idempotent.
+* **Authorization.** Any realm user may sign in and sees only their own rows (the username filter is pinned); the realm
+  role `app-admin` sees everything and the admin panel. Denied attempts are logged as `ACCESS_DENIED`.
+* **Token lifecycle.** Before each request the token is checked: with fewer than `LOGAPP_EXPIRY_WARN_SECONDS` left a
+  `TOKEN_EXPIRY_WARNING` is logged and the refresh token is used (`TOKEN_REFRESH`); a failed refresh ends the session.
+* **Admin API access.** Keycloak 26.8 requires the audience `<host>/admin/realms/<realm>` on Admin REST tokens, supplied by
+  the optional scope `kc-admin-api`. The service account holds only `view-events`.
+
 ## Network and URL design
 
 Browsers and containers reach Keycloak by different names, which is the classic Keycloak container pitfall:
@@ -163,6 +198,6 @@ request host, while front-channel URLs and the `iss` claim stay on `KC_HOSTNAME`
 
 | Level | Tooling | Scope |
 |---|---|---|
-| Unit | pytest (78 tests) | Token validation (expiry, issuer, audience, forged and `alg=none` tokens), policy client, API endpoints with a fake policy point, web app flows with a stubbed Authlib client, service client token caching, helpers |
+| Unit | pytest (213 tests) | Log dashboard (store, event sync, token lifecycle, filters, access control, verification script), token validation (expiry, issuer, audience, forged and `alg=none` tokens), policy client, API endpoints with a fake policy point, web app flows with a stubbed Authlib client, service client token caching, helpers |
 | Configuration | pytest | Realm file consistency (policy/resource/scope references), no clear-text secrets, every compose variable documented, every realm placeholder passed to Keycloak, Dockerfile policy |
-| End to end | `scripts/verify.sh` | Runs against the live stack, local or online: discovery, JWKS, PKCE, 401/403/200/201 matrix with real user and service tokens |
+| End to end | `scripts/verify.sh` | Runs against the live stack, local or online: discovery, JWKS, PKCE, 401/403/200/201 matrix with real user and service tokens, then `verify_logapp.py` (scripted browser session on the dashboard) |

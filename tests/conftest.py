@@ -9,7 +9,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 
 ROOT = Path(__file__).resolve().parents[1]
 # The services use top-level module names (api_app, api_auth, app, helpers, log_app, store ...).
-for sub in ("api", "webapp", "logapp"):
+for sub in ("api", "webapp", "logapp", "scripts"):
     sys.path.insert(0, str(ROOT / sub))
 
 ISSUER = "https://auth.test/realms/demo"

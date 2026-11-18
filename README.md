@@ -10,6 +10,7 @@ locally with **one command** and deploys online behind automatic HTTPS.
 | Realm configuration as code (users, roles, groups, clients, theme, i18n, events) | `keycloak/realm/demo-realm.json` |
 | Client applications (confidential web app, resource-server API, service client, public CLI client) | `webapp/`, `api/`, `service/`, `scripts/verify.sh` |
 | Service-to-service authentication (client credentials, machine role `app-service`) | `service/service_client.py`, client `demo-service` |
+| Log dashboard: auth events, API access, token refresh/expiry, service-to-service, admin statistics | `logapp/`, client `demo-logapp` |
 | Reproducible containers (Docker and Podman) | `docker-compose.yml`, `*/Dockerfile` |
 | Online deployment with Let's Encrypt HTTPS | `docker-compose.prod.yml`, `deploy/Caddyfile` |
 
@@ -19,11 +20,12 @@ Prerequisite: [Podman](https://podman.io) or Docker with the compose plugin, plu
 
 ```bash
 scripts/start.sh      # generates .env with random secrets on first run, builds and starts everything
-scripts/verify.sh     # 23 end-to-end checks (login, tokens, authorization, service-to-service)
+scripts/verify.sh     # 44 end-to-end checks (login, tokens, authorization, service-to-service, log dashboard)
 ```
 
 Open the web app at <http://localhost:8081> and sign in as `alice` or `bob`
 (passwords are in your `.env`: `DEMO_USER_PASSWORD`, `DEMO_ADMIN_PASSWORD`).
+The log dashboard is at <http://localhost:8083> (sign in as `bob` to see every user's events and the admin panel).
 The Keycloak admin console is at <http://localhost:8080/admin> (user and password from `.env`).
 
 Stop with `scripts/stop.sh`; remove everything with `scripts/cleanup.sh` and `scripts/cleanup-images.sh`.
@@ -50,10 +52,16 @@ flowchart LR
     API -->|JWKS: verify signature| KC
     API -->|5. UMA decision: resource#scope| KC
     KC --> PG[(PostgreSQL 17)]
+    Browser -->|login, dashboard| Log[Log dashboard :8083<br/>OIDC client demo-logapp]
+    Log -->|code to tokens, refresh| KC
+    Log -->|admin REST: view-events| KC
+    Log -->|schema logapp| PG
+    Log -->|s2s call, Bearer| API
     Caddy{{Caddy, HTTPS - online only}} -.-> Browser
     Caddy -.-> KC
     Caddy -.-> Web
     Caddy -.-> API
+    Caddy -.-> Log
 ```
 
 ## Workflow
@@ -88,9 +96,10 @@ webapp/            Flask OIDC client (Authlib) + Dockerfile
 api/               Flask resource server (PyJWT + Authorization Services) + Dockerfile
 deploy/Caddyfile   HTTPS reverse proxy for online deployments
 docker-compose.yml, docker-compose.prod.yml, .env.example
-scripts/           start, stop, verify, init-env, cleanup, cleanup-images
+scripts/           start, stop, verify (+ verify_logapp.py), init-env, cleanup, cleanup-images
+logapp/            Flask log dashboard: event capture, Keycloak event sync, admin stats (PostgreSQL schema `logapp`)
 service/           Service-to-service client (client credentials grant)
-tests/             78 unit and configuration tests (pytest)
+tests/             213 unit and configuration tests (pytest)
 Docs/              Quickstart, Deployment, Configuration, Architecture
 ```
 

@@ -50,16 +50,17 @@ Rootless Podman cannot bind ports 80/443 without `sysctl net.ipv4.ip_unprivilege
 
 ### 3. DNS names
 
-Create three `A` records pointing at the server IP (or one wildcard):
+Create four `A` records pointing at the server IP (or one wildcard):
 
 ```
 auth.example.com   A  <server-ip>
 app.example.com    A  <server-ip>
 api.example.com    A  <server-ip>
+logs.example.com   A  <server-ip>
 ```
 
 No domain? Use [sslip.io](https://sslip.io): for IP `203.0.113.10` the names `auth.203-0-113-10.sslip.io`,
-`app.203-0-113-10.sslip.io` and `api.203-0-113-10.sslip.io` resolve automatically.
+`app.203-0-113-10.sslip.io` and `api.203-0-113-10.sslip.io` and `logs.203-0-113-10.sslip.io` resolve automatically.
 
 ### 4. Get the code and configure
 
@@ -75,11 +76,13 @@ Set in `.env` (replace `example.com` by your domain):
 KC_PUBLIC_HOST=auth.example.com
 APP_PUBLIC_HOST=app.example.com
 API_PUBLIC_HOST=api.example.com
+LOGAPP_PUBLIC_HOST=logs.example.com
 ACME_EMAIL=you@yourdomain.tld
 
 KC_HOSTNAME=https://auth.example.com
 WEBAPP_PUBLIC_URL=https://app.example.com
 API_PUBLIC_URL=https://api.example.com
+LOGAPP_PUBLIC_URL=https://logs.example.com
 BIND_ADDRESS=127.0.0.1
 
 # demo hardening - see the checklist below
@@ -120,6 +123,8 @@ scripts/verify.sh                                           # expected: VERIFY O
 # c) browser test
 #    open https://app.example.com -> Sign in -> alice or bob -> try the four API buttons
 #    alice: reports 200, write/admin 403.  bob: all allowed.
+
+#    open https://logs.example.com -> sign in as bob -> events, filters, Admin page statistics
 
 # d) negative checks
 curl -s -o /dev/null -w '%{http_code}\n' https://api.example.com/api/reports                  # 401
@@ -171,6 +176,7 @@ Complete before exposing real users:
 
 - [ ] `DEMO_REGISTRATION_ALLOWED=false` (or add e-mail verification with SMTP).
 - [ ] Set `DEMO_CLI_ENABLED=false`: it enables the password grant. Because the realm is imported only once, apply it on an existing deployment in the admin console (Clients > `demo-cli` > disable) or wipe and re-import.
+- [ ] Keep the log dashboard behind HTTPS only (`LOGAPP_TRUST_PROXY=true` is set by the prod overlay); it stores IPs and usernames in the `logapp` schema, so define a retention policy (`DELETE FROM logapp.app_events WHERE ts < now() - interval '90 days'`) and back it up with the database.
 - [ ] Rotate `SERVICE_CLIENT_SECRET` (admin console: Clients > `demo-service` > Credentials) and store it in your secret manager; give real services their own clients instead of sharing `demo-service`.
 - [ ] Delete or re-password the demo users `alice` and `bob`.
 - [ ] Replace the bootstrap admin by a named admin with MFA.
@@ -191,3 +197,4 @@ Complete before exposing real users:
 | API 401 for valid tokens | `KC_HOSTNAME` must be exactly the issuer host used to obtain the token (scheme, host, no trailing slash) |
 | `verify.sh` fails at the service token step | `SERVICE_CLIENT_SECRET` in `.env` differs from the imported one (realm imported before the variable existed: wipe and re-import, or set the secret in the admin console) |
 | `verify.sh` fails at token step | `DEMO_CLI_ENABLED=false`, or `.env` passwords differ from the imported ones |
+| Dashboard shows no Keycloak events online | `LOGAPP_CLIENT_SECRET` differs from the imported one (wipe and re-import or set it in Clients > `demo-logapp` > Credentials); check the Admin page for the last sync error |

@@ -35,6 +35,7 @@ ENTRIES=(
   "AGENTS.md"
   ".bob/mcp.json"
   ".bob/audit/"
+  ".DS_Store"
 )
 
 MISSING=()

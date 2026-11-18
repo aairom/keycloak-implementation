@@ -1,0 +1,52 @@
+== Keycloak (http://localhost:8080), realm 'demo'
+PASS  OIDC discovery document (HTTP 200)
+PASS  realm signing keys (JWKS) (HTTP 200)
+PASS  login page of the web app client renders (HTTP 200)
+== Web app (http://localhost:8081)
+PASS  health endpoint (HTTP 200)
+PASS  login redirects to Keycloak with PKCE (S256)
+== API (http://localhost:8082)
+PASS  public health endpoint (HTTP 200)
+PASS  no token is rejected (HTTP 401)
+PASS  garbage token is rejected (HTTP 401)
+PASS  obtained access tokens for alice and bob
+== Authorization (roles evaluated by Keycloak policies)
+PASS  alice GET  /api/me (HTTP 200)
+PASS  alice GET  /api/reports (app-user) (HTTP 200)
+PASS  alice POST /api/reports (needs app-admin) (HTTP 403)
+PASS  alice GET  /api/admin (needs app-admin) (HTTP 403)
+PASS  bob   GET  /api/reports (HTTP 200)
+PASS  bob   POST /api/reports (HTTP 201)
+PASS  bob   GET  /api/admin (HTTP 200)
+== Service-to-service (client credentials, no user)
+PASS  obtained service token via client credentials
+PASS  service GET /api/service/data (role app-service) (HTTP 200)
+PASS  service GET /api/reports (human-only resource) (HTTP 403)
+PASS  service GET /api/admin (human-only resource) (HTTP 403)
+PASS  alice GET /api/service/data (not a service) (HTTP 403)
+PASS  wrong service secret is refused (HTTP 401)
+PASS  service-to-service without token is rejected (HTTP 401)
+== Log dashboard (scripted browser session: Keycloak login form, dashboard, filters, admin panel)
+PASS  health endpoint reports the database
+PASS  anonymous users are sent to login
+PASS  alice signs in with Authorization Code + PKCE
+PASS  API calls are logged with method, path and status (bob 200, alice 403)
+PASS  API calls record their duration
+PASS  service-to-service request is logged as the demo-service identity
+PASS  application login events are logged
+PASS  HTTP access log has method, path and status
+PASS  Keycloak LOGIN events are synchronised (admin REST, view-events)
+PASS  admin filter by username
+PASS  filter by date range
+PASS  date range without events is empty
+PASS  filter by status code
+PASS  filter by status class (4xx)
+PASS  filter by event type
+PASS  non-admin cannot read other users' events (username filter is pinned)
+PASS  admin panel is forbidden for alice
+PASS  admin panel shows aggregate statistics for bob
+PASS  denied admin access is logged
+PASS  logout ends the session
+PASS  logout event is logged
+
+VERIFY OK

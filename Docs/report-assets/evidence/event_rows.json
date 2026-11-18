@@ -1,0 +1,40 @@
+[
+    {
+        "id": 4057,
+        "ts": 1795023899580,
+        "source": "app",
+        "kind": "token",
+        "event_type": "TOKEN_REFRESH",
+        "username": "alice",
+        "user_id": null,
+        "client_id": null,
+        "session_id": "9uKJOY_YM_6QSicGTpM60JTj",
+        "ip": null,
+        "method": null,
+        "path": null,
+        "status": null,
+        "duration_ms": 24,
+        "error": null,
+        "detail": "{\"expires_in\": 299, \"reason\": \"auto\"}",
+        "dedupe_key": null
+    },
+    {
+        "id": 5802,
+        "ts": 1795024111055,
+        "source": "keycloak",
+        "kind": "auth",
+        "event_type": "REFRESH_TOKEN",
+        "username": "alice",
+        "user_id": "f1558da0-b2c8-4d1f-93da-66196b2f4018",
+        "client_id": "demo-cli",
+        "session_id": "V0SU7jFtypW1ZdpihT53WbK4",
+        "ip": "192.168.127.1",
+        "method": null,
+        "path": null,
+        "status": null,
+        "duration_ms": null,
+        "error": null,
+        "detail": "{\"access_token_expiration_time\": \"300\", \"age_of_refresh_token\": \"0\", \"client_auth_method\": \"client-secret\", \"grant_type\": \"refresh_token\", \"refresh_token_id\": \"e5a8c9a5-0438-7a1b-441f-9d2da72b0b7c\", \"refresh_token_provider_id\": \"default\", \"refresh_token_sub\": \"f1558da0-b2c8-4d1f-93da-66196b2f4018\", \"refresh_token_type\": \"Refresh\", \"scope\": \"email profile\", \"token_id\": \"onrtrt:14378d7d-c3de-a8bb-714e-30a4d4b07f6a\", \"updated_refresh_token_id\": \"b505cd6a-b1a9-3938-1f36-de9beeb9f796\"}",
+        "dedupe_key": "f475b24166fcd7a8b2fe07a5f017ec023d2dbc12"
+    }
+]

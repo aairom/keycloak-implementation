@@ -6,3 +6,6 @@ PyJWT[crypto]==2.15.1
 requests==2.34.2
 gunicorn==27.0.1
 pytest==9.2.0
+# scripts/build_report.py (builds Docs/logging-system-report.html)
+Markdown==3.11.3
+Pygments==2.21.0

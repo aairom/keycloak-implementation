@@ -39,7 +39,7 @@ flowchart TB
 | `postgres` | PostgreSQL 17 | Persists realms, users, sessions, events | Named volume |
 | `webapp` | Flask 3, Authlib, gunicorn | Browser-facing OIDC client; logs users in, shows claims, calls the API with the user's token | Stateless (signed cookie) |
 | `api` | Flask 3, PyJWT, gunicorn | OAuth 2.0 resource server; validates tokens locally and asks Keycloak for permission decisions | Stateless |
-| `logapp` | Flask 3, Authlib, PyJWT, psycopg 3, gunicorn (1 worker, 8 threads) | OIDC client that records auth, API, token and service-to-service events, pulls Keycloak's event log, serves the filterable dashboard and the admin statistics | PostgreSQL schema `logapp` (tokens only in process memory) |
+| `logapp` | Flask 3, Authlib, psycopg 3, gunicorn (1 worker, 8 threads) | OIDC client that records auth, API, token and service-to-service events, pulls Keycloak's event log, serves the filterable dashboard and the admin statistics | PostgreSQL schema `logapp` (tokens only in process memory) |
 | `caddy` (online only) | Caddy 2 | TLS termination with automatic certificates, security headers, admin allow-list | Volumes `caddy-data`, `caddy-config` |
 
 ## Authentication flow (OIDC authorization code + PKCE)
@@ -153,9 +153,38 @@ flowchart LR
 * **Authorization.** Any realm user may sign in and sees only their own rows (the username filter is pinned); the realm
   role `app-admin` sees everything and the admin panel. Denied attempts are logged as `ACCESS_DENIED`.
 * **Token lifecycle.** Before each request the token is checked: with fewer than `LOGAPP_EXPIRY_WARN_SECONDS` left a
-  `TOKEN_EXPIRY_WARNING` is logged and the refresh token is used (`TOKEN_REFRESH`); a failed refresh ends the session.
+  `TOKEN_EXPIRY_WARNING` is logged and the refresh token is used (`TOKEN_REFRESH`). A failed refresh is logged as
+  `TOKEN_REFRESH_FAILED`; the session ends (`TOKEN_EXPIRED`) only when the access token has really expired.
+* **Token handling and PostgreSQL.** Access, ID and refresh tokens are kept only in the process memory (`TokenVault`,
+  keyed by an opaque session id). The browser cookie holds the session id and a few claims, and PostgreSQL never
+  receives token material: `user_sessions` stores username, roles, timestamps and the end reason only.
 * **Admin API access.** Keycloak 26.8 requires the audience `<host>/admin/realms/<realm>` on Admin REST tokens, supplied by
   the optional scope `kc-admin-api`. The service account holds only `view-events`.
+
+### PostgreSQL event flow
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant L as logapp
+    participant K as Keycloak
+    participant P as PostgreSQL
+    U->>K: login, token refresh, logout
+    K->>P: INSERT public.event_entity (only types in enabledEventTypes)
+    U->>L: request
+    L->>P: INSERT logapp.app_events (source=app)
+    loop every LOGAPP_SYNC_INTERVAL seconds
+        L->>K: GET /admin/realms/demo/events?dateFrom=...&first=...&max=200 (Bearer, scope kc-admin-api)
+        K-->>L: JSON events
+        L->>P: INSERT ... ON CONFLICT (dedupe_key) DO NOTHING (source=keycloak)
+        L->>P: UPDATE sync_state keycloak_events_watermark_ms
+    end
+```
+
+Keycloak does **not** store `REFRESH_TOKEN` events by default. The realm therefore lists 25 `enabledEventTypes`
+explicitly (`keycloak/realm/demo-realm.json`), including `REFRESH_TOKEN`, `LOGOUT`, `CODE_TO_TOKEN` and `CLIENT_LOGIN`.
+The `TOKEN_REFRESH` rows of the application and the `REFRESH_TOKEN` rows of Keycloak are two views of the same
+operation and are kept apart by the `source` column.
 
 ## Network and URL design
 
@@ -164,7 +193,7 @@ Browsers and containers reach Keycloak by different names, which is the classic 
 | Actor | Address used | Why |
 |---|---|---|
 | Browser | `KC_HOSTNAME` (`http://localhost:8080` or `https://auth.example.com`) | Public front channel; defines the token issuer |
-| webapp, api (back channel) | `http://keycloak:8080` | Container-to-container, no TLS round trip through the proxy |
+| webapp, api, logapp (back channel) | `http://keycloak:8080` (logapp: token, refresh and `/admin/realms/<realm>/events`) | Container-to-container, no TLS round trip through the proxy |
 | Token validation in the API | `OIDC_ISSUER` = `KC_HOSTNAME/realms/<realm>` | The issuer is the public one, even though keys are fetched internally |
 
 `KC_HOSTNAME_BACKCHANNEL_DYNAMIC=true` lets Keycloak answer internal requests with endpoints derived from the
@@ -185,13 +214,14 @@ request host, while front-channel URLs and the `iss` claim stay on `KC_HOSTNAME`
 |---|---|
 | Browser client | Confidential client, code flow + PKCE S256, exact redirect URI, implicit and password grants off |
 | Service client | Client credentials only, least-privilege role `app-service`, secret from `.env`, token cached in memory |
-| Tokens | Access token 5 min; tokens stay server-side in a signed HttpOnly cookie session, never in browser storage |
+| Tokens | Access token 5 min. `webapp`: tokens are inside the signed (not encrypted) HttpOnly Flask cookie, never in browser storage. `logapp`: tokens only in server memory, the cookie holds an opaque session id |
 | CSRF | State/nonce on login; per-session CSRF token on every POST to the API proxy route; SameSite=Lax cookies |
 | API | Signature + issuer + audience + required claims; algorithm allow-list rejects `none`; authorization delegated to Keycloak policies; fail closed (deny on error) |
 | Audience | Audience mapper adds `demo-api` so a token minted for another API is not accepted |
 | Credentials | Brute-force detection, password policy, passwords and secrets only via `.env` (random, mode 600, git-ignored) |
 | Containers | Non-root users, multi-stage builds, pinned tags, ports bound to `127.0.0.1`, management port 9000 not published |
 | Transport | Online: Caddy terminates TLS, HSTS, `nosniff`, referrer policy, optional admin allow-list |
+| Log dashboard data | Usernames and IP addresses are stored in `logapp`; non-admins see only their own rows (filter pinned server-side); the sync account holds `view-events` only; retention is the operator's job (see [Deployment](Deployment.md#hardening-checklist)) |
 | Known demo trade-offs | Self-registration, `demo-cli` password grant and fixed demo users exist for convenience; each can be switched off (see [Deployment hardening](Deployment.md#hardening-checklist)) |
 
 ## Testing strategy

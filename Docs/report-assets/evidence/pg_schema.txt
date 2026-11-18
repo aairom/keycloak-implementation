@@ -1,0 +1,56 @@
+# logapp schema as created in the running PostgreSQL (2026-11-18T17:50:03Z)
+  table_name   |    column_name    | data_type | is_nullable | column_default 
+---------------+-------------------+-----------+-------------+----------------
+ app_events    | id                | bigint    | NO          | 
+ app_events    | ts                | bigint    | NO          | 
+ app_events    | source            | text      | NO          | 
+ app_events    | kind              | text      | NO          | 
+ app_events    | event_type        | text      | NO          | 
+ app_events    | username          | text      | YES         | 
+ app_events    | user_id           | text      | YES         | 
+ app_events    | client_id         | text      | YES         | 
+ app_events    | session_id        | text      | YES         | 
+ app_events    | ip                | text      | YES         | 
+ app_events    | method            | text      | YES         | 
+ app_events    | path              | text      | YES         | 
+ app_events    | status            | integer   | YES         | 
+ app_events    | duration_ms       | integer   | YES         | 
+ app_events    | error             | text      | YES         | 
+ app_events    | detail            | text      | YES         | 
+ app_events    | dedupe_key        | text      | YES         | 
+ audit_log     | id                | bigint    | NO          | 
+ audit_log     | ts                | bigint    | NO          | 
+ audit_log     | actor             | text      | YES         | 
+ audit_log     | action            | text      | NO          | 
+ audit_log     | target            | text      | YES         | 
+ audit_log     | ip                | text      | YES         | 
+ audit_log     | outcome           | text      | NO          | 
+ sync_state    | name              | text      | NO          | 
+ sync_state    | value             | text      | NO          | 
+ user_sessions | sid               | text      | NO          | 
+ user_sessions | username          | text      | YES         | 
+ user_sessions | user_id           | text      | YES         | 
+ user_sessions | kc_session_id     | text      | YES         | 
+ user_sessions | roles             | text      | YES         | 
+ user_sessions | ip                | text      | YES         | 
+ user_sessions | login_at          | bigint    | NO          | 
+ user_sessions | last_seen_at      | bigint    | NO          | 
+ user_sessions | access_expires_at | bigint    | YES         | 
+ user_sessions | refreshes         | integer   | NO          | 0
+ user_sessions | logout_at         | bigint    | YES         | 
+ user_sessions | end_reason        | text      | YES         | 
+(38 rows)
+
+         indexname         |                                          indexdef                                           
+---------------------------+---------------------------------------------------------------------------------------------
+ app_events_dedupe_key_key | CREATE UNIQUE INDEX app_events_dedupe_key_key ON logapp.app_events USING btree (dedupe_key)
+ app_events_pkey           | CREATE UNIQUE INDEX app_events_pkey ON logapp.app_events USING btree (id)
+ audit_log_pkey            | CREATE UNIQUE INDEX audit_log_pkey ON logapp.audit_log USING btree (id)
+ ix_events_ts              | CREATE INDEX ix_events_ts ON logapp.app_events USING btree (ts)
+ ix_events_type            | CREATE INDEX ix_events_type ON logapp.app_events USING btree (event_type)
+ ix_events_user            | CREATE INDEX ix_events_user ON logapp.app_events USING btree (username)
+ ix_sessions_user          | CREATE INDEX ix_sessions_user ON logapp.user_sessions USING btree (username)
+ sync_state_pkey           | CREATE UNIQUE INDEX sync_state_pkey ON logapp.sync_state USING btree (name)
+ user_sessions_pkey        | CREATE UNIQUE INDEX user_sessions_pkey ON logapp.user_sessions USING btree (sid)
+(9 rows)
+

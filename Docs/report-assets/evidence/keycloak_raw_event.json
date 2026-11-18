@@ -1,0 +1,23 @@
+{
+ "id": "d2ff42e7-21ac-4825-9396-42de91c33422",
+ "time": 1795023899565,
+ "type": "REFRESH_TOKEN",
+ "realmId": "88a0ed07-6e94-4e0d-aebb-a32d7ffc951c",
+ "clientId": "demo-logapp",
+ "userId": "f1558da0-b2c8-4d1f-93da-66196b2f4018",
+ "sessionId": "9uKJOY_YM_6QSicGTpM60JTj",
+ "ipAddress": "10.89.0.7",
+ "details": {
+  "refresh_token_provider_id": "default",
+  "token_id": "onrtrt:4559baee-ce37-ad51-db21-1cb717463c54",
+  "grant_type": "refresh_token",
+  "refresh_token_type": "Refresh",
+  "access_token_expiration_time": "300",
+  "updated_refresh_token_id": "aede2b54-8a00-4497-35c9-a7178d429192",
+  "scope": "openid email profile",
+  "age_of_refresh_token": "50",
+  "refresh_token_id": "0129e5fc-2e1e-373d-e99b-8233e1bcfd8a",
+  "refresh_token_sub": "f1558da0-b2c8-4d1f-93da-66196b2f4018",
+  "client_auth_method": "client-secret"
+ }
+}

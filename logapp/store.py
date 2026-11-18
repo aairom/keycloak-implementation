@@ -47,7 +47,7 @@ def _ddl(postgres: bool) -> list[str]:
 
 
 def dedupe_key(*parts: Any) -> str:
-    """Stable identity of an upstream event (Keycloak's REST events have no id)."""
+    """Stable identity of an upstream event: a hash of its content, independent of Keycloak's own event id."""
     return hashlib.sha256("|".join("" if p is None else str(p) for p in parts).encode()).hexdigest()[:40]
 
 

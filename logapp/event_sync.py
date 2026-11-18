@@ -1,7 +1,7 @@
 """Pull Keycloak's own event log (logins, failures, logouts, token refreshes) into the dashboard database.
 
 Keycloak stores events in ``event_entity`` and exposes them at ``GET /admin/realms/<realm>/events``.
-The REST events have no id, so each one gets a content hash (``dedupe_key``): syncing the same window
+Each event gets a content hash (``dedupe_key``) instead of relying on Keycloak's event id: syncing the same window
 twice never creates duplicates, which also makes it safe to run in several gunicorn workers.
 """
 from __future__ import annotations

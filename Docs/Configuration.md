@@ -9,12 +9,14 @@
 | Caddy | 2-alpine | `docker.io/library/caddy` | HTTPS reverse proxy (online only) |
 | Python | 3.12-slim | `docker.io/library/python` | Runtime of web app and API images |
 | Flask / Authlib | 3.1.3 / 1.9.8 | PyPI | Web app and OIDC client |
-| PyJWT[crypto] / requests / gunicorn | 2.15.1 / 2.34.2 / 27.0.1 | PyPI | API token validation, HTTP, WSGI server |
+| PyJWT[crypto] | 2.15.1 | PyPI | API token validation (`api/` only; `logapp` and `webapp` read claims without it) |
+| requests / gunicorn | 2.34.2 / 27.0.1 | PyPI | HTTP, WSGI server |
+| psycopg[binary] | 3.3.9 | PyPI | PostgreSQL driver of `logapp/` (SQLite is used in unit tests) |
 | pytest | 9.2.0 | PyPI | Tests (development only) |
 
 Python dependency versions were checked against OSV.dev for known vulnerabilities when this project was created.
 Re-check them (`uv pip list --outdated`, OSV, `pip-audit`) before every release. Per-service pins live in
-`webapp/requirements.txt` and `api/requirements.txt`; the root `requirements.txt` is the union plus pytest for development.
+`webapp/requirements.txt`, `api/requirements.txt` and `logapp/requirements.txt`; the root `requirements.txt` is the union of the web app and API plus pytest for development (it has no `psycopg`: unit tests use SQLite, the PostgreSQL path is covered by `scripts/verify.sh`).
 
 Host tooling: Podman or Docker with compose, `curl`, `python3`, `openssl`, `uv` (tests only).
 
@@ -85,9 +87,10 @@ Variables set by compose inside the containers (not in `.env`):
 | `LOGAPP_PAGE_SIZE` | `25` | Rows per page |
 | `LOGAPP_TRUST_PROXY` | `false` | Trust `X-Forwarded-*` (set to `true` by `docker-compose.prod.yml`) |
 
-Set by compose inside the container: `DATABASE_URL` (PostgreSQL, schema `logapp` in the Keycloak database, created on start),
-`OIDC_DISCOVERY_URL`, `OIDC_CLIENT_ID=demo-logapp`, `OIDC_CLIENT_SECRET`, `API_BASE_URL`, `KEYCLOAK_INTERNAL_URL`.
-Without `DATABASE_URL` pointing at PostgreSQL the app also runs on SQLite (`sqlite:///path.db`), which the unit tests use.
+Set by compose inside the container: `LOGAPP_DATABASE_URL` (PostgreSQL, schema `logapp` in the Keycloak database, created on start),
+`OIDC_DISCOVERY_URL`, `OIDC_CLIENT_ID=demo-logapp`, `OIDC_CLIENT_SECRET`, `SERVICE_CLIENT_SECRET`, `API_BASE_URL`.
+The Keycloak back channel (token and Admin REST endpoints) is derived from `OIDC_DISCOVERY_URL`. A `LOGAPP_DATABASE_URL` of the form
+`sqlite:///path.db` also works; the unit tests use it.
 
 Design notes: tokens are kept only in the process memory (`TokenVault`), so gunicorn runs **one worker with 8 threads**;
 after a restart users sign in again. The Keycloak events API needs the audience `<host>/admin/realms/<realm>`, which the

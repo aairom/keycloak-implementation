@@ -1,0 +1,16 @@
+Name                        Stmts   Miss Branch BrPart  Cover   Missing
+-----------------------------------------------------------------------
+api/api_app.py                 80      3      8      2    94%   46, 130-131
+api/api_auth.py                44      1     10      0    98%   92
+logapp/event_sync.py           70      0     18      1    99%   68->81
+logapp/log_app.py             281      7     40      3    97%   112, 133->135, 322-323, 400-401, 405-406
+logapp/log_config.py           49      0      6      0   100%
+logapp/log_helpers.py          71      0     10      0   100%
+logapp/store.py               157     10     40      2    94%   73-74, 83-85, 111-113, 120-121
+logapp/token_source.py         26      0      4      0   100%
+scripts/verify_logapp.py       88      1     16      1    98%   137
+service/service_client.py      36      1      6      1    95%   69
+webapp/app.py                  97      8     14      2    91%   55-56, 129-130, 156-157, 161-162
+webapp/helpers.py              27      0      4      0   100%
+-----------------------------------------------------------------------
+TOTAL                        1026     31    176     12    96%

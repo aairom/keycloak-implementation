@@ -39,6 +39,7 @@ See [Docs/Quickstart.md](Docs/Quickstart.md) for the full walk-through.
 | [Docs/Quickstart.md](Docs/Quickstart.md) | Local setup, tour of the demo, curl examples, tests, troubleshooting |
 | [Docs/Deployment.md](Docs/Deployment.md) | Online deployment step by step (VPS with HTTPS, other platforms) and post-deployment verification |
 | [Docs/Configuration.md](Docs/Configuration.md) | Dependencies, every environment variable, realm model, customization options |
+| [Docs/logging-system-report.html](Docs/logging-system-report.html) | Self-contained report of the log dashboard: sources, tests, schemas, screenshots, per-claim verification status. Rebuild with `.venv/bin/python scripts/build_report.py` |
 | [Docs/Architecture.md](Docs/Architecture.md) | Components, flows and security decisions with diagrams |
 
 ## Architecture
@@ -96,7 +97,7 @@ webapp/            Flask OIDC client (Authlib) + Dockerfile
 api/               Flask resource server (PyJWT + Authorization Services) + Dockerfile
 deploy/Caddyfile   HTTPS reverse proxy for online deployments
 docker-compose.yml, docker-compose.prod.yml, .env.example
-scripts/           start, stop, verify (+ verify_logapp.py), init-env, cleanup, cleanup-images
+scripts/           start, stop, verify (+ verify_logapp.py), init-env, cleanup, cleanup-images, build_report.py
 logapp/            Flask log dashboard: event capture, Keycloak event sync, admin stats (PostgreSQL schema `logapp`)
 service/           Service-to-service client (client credentials grant)
 tests/             213 unit and configuration tests (pytest)
@@ -108,7 +109,7 @@ Docs/              Quickstart, Deployment, Configuration, Architecture
 ```bash
 uv venv .venv && uv pip install --python .venv/bin/python -r requirements.txt   # or: python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python -m pytest -q                         # unit tests, no containers needed
-scripts/verify.sh                                     # end-to-end, needs the running stack
+scripts/verify.sh                                     # end-to-end, needs the running stack (covers the PostgreSQL path; unit tests use SQLite)
 ```
 
 ## Security notes
@@ -116,6 +117,7 @@ scripts/verify.sh                                     # end-to-end, needs the ru
 * The demo realm ships users, a password-grant client (`demo-cli`) and self-registration for convenience.
   For anything beyond a demo set `DEMO_CLI_ENABLED=false`, `DEMO_REGISTRATION_ALLOWED=false` and
   restrict `/admin` with `ADMIN_ALLOWED_CIDR` (see [Docs/Deployment.md](Docs/Deployment.md#hardening-checklist)).
+* The log dashboard stores usernames and IP addresses in the `logapp` schema; define a retention policy ([Docs/Deployment.md](Docs/Deployment.md#hardening-checklist)).
 * No secret is stored in the repository: `.env` is generated with random values and is git-ignored.
 
 ## License

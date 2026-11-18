@@ -1,6 +1,6 @@
 # Quickstart (local)
 
-Goal: a working Keycloak with a login-protected web app and API in about three minutes of attended time
+Goal: a working Keycloak with a login-protected web app, API and log dashboard in about three minutes of attended time
 (plus the image build on first run).
 
 ## 1. Prerequisites
@@ -9,7 +9,7 @@ Goal: a working Keycloak with a login-protected web app and API in about three m
 |---|---|---|
 | Podman **or** Docker, with the compose plugin | Podman 5+/Docker 24+ | `podman compose version` or `docker compose version` |
 | curl, python3, openssl | any recent | used by the helper scripts |
-| Free ports | 8080 (Keycloak), 8081 (web app), 8082 (API) | `lsof -i :8080 -i :8081 -i :8082` |
+| Free ports | 8080 (Keycloak), 8081 (web app), 8082 (API), 8083 (log dashboard) | `lsof -i :8080 -i :8081 -i :8082 -i :8083` |
 
 macOS with Podman: start the VM first (`podman machine start`). Port 5000 is never used (AirDrop).
 The scripts pick Podman first and fall back to Docker; force one with `COMPOSE_CMD="docker compose" scripts/start.sh`.
@@ -25,7 +25,7 @@ On the first run the script:
 
 1. creates `.env` from `.env.example` with random secrets (`scripts/init-env.sh`),
 2. builds four images (Keycloak with theme and realm, API, web app, log dashboard) and pulls PostgreSQL,
-3. waits until Keycloak and the web app answer, then prints the URLs.
+3. waits until Keycloak, the web app and the log dashboard answer, then prints the URLs.
 
 Expect 1-3 minutes on first start (image pulls and Keycloak build step); later starts take under a minute.
 The Keycloak realm `demo` is imported automatically on first start only.
@@ -38,6 +38,7 @@ Show your passwords: `grep -E 'DEMO_(USER|ADMIN)_PASSWORD|KC_BOOTSTRAP' .env`. T
 |---|---|---|---|---|
 | Demo user (employee) | `demo` | web app <http://localhost:8081> | `alice` | `DEMO_USER_PASSWORD` |
 | Demo user (manager, **not** a Keycloak admin) | `demo` | web app <http://localhost:8081> | `bob` | `DEMO_ADMIN_PASSWORD` |
+| Demo user (employee or manager) on the log dashboard | `demo` | log dashboard <http://localhost:8083> | `alice` / `bob` | same passwords as above |
 | Keycloak administrator | `master` | admin console <http://localhost:8080/admin> | `admin` (`KC_BOOTSTRAP_ADMIN_USERNAME`) | `KC_BOOTSTRAP_ADMIN_PASSWORD` |
 
 The administrator cannot sign in on the web app's login page, and `alice`/`bob` cannot sign in to the admin console.
@@ -55,15 +56,15 @@ If a login page stops working, start again from the web app: the long `login-act
 | 8 | Wrong password five times | Account temporarily locked (brute-force protection) |
 | 9 | Realm `demo` > Events | Login events and admin events are recorded |
 | 10 | <http://localhost:8083> > **Sign in** (alice, then bob) | Log dashboard: your own events as `alice`, everybody's as `bob` |
-| 11 | Dashboard > **Call API** buttons and **Service call** | `API_CALL` and `S2S_REQUEST` rows with method, path, status and duration |
-| 12 | Filter by username, date range, event type, status (`403`, `4xx`) | Table and counters update; `/events.json` returns the same data |
-| 13 | As `bob`: **Admin** | Total logins, failed attempts, most active users, sync status, **Sync now** |
+| 11 | Dashboard buttons **Who am I?**, **Read reports (app-user)**, **Admin panel (app-admin)** and **Service-to-service call** | `API_CALL` and `S2S_REQUEST` rows with method, path, status and duration |
+| 12 | Filters **User** (admins only), **Event type**, **Category**, **Origin**, **Status** (`403`, `4xx`), **From**, **To**, **Search**, **Live (5 s)**, then **Apply** or **Reset** | The table is paginated and the count in the heading updates; `/events.json` accepts the same query parameters |
+| 13 | As `bob`: **Admin** (range links 1d, 7d, 30d) | Logins (Keycloak), Failed attempts, Active sessions, Token refreshes, Expiry warnings, API/HTTP requests, HTTP errors, Avg ms, Service-to-service; Most active users, Logins per day, Recent sessions, Admin audit log, Keycloak event sync with **Sync now** |
 
 The log dashboard is its own OIDC client (`demo-logapp`). Every few seconds it also pulls Keycloak's event log through
 a service account that only holds `view-events`, so Keycloak-side events (`LOGIN_ERROR`, `REFRESH_TOKEN`, ...) show up
 next to the application's own rows (`source` = `app` or `keycloak`). To see the token warning quickly set
-`LOGAPP_EXPIRY_WARN_SECONDS=290` in `.env` and restart: the dashboard logs `TOKEN_EXPIRY_WARNING` and refreshes the token
-(`TOKEN_REFRESH`) when 290 of the 300 token seconds are left.
+`LOGAPP_EXPIRY_WARN_SECONDS=290` in `.env` and run `scripts/start.sh` again (it recreates the container): the dashboard logs `TOKEN_EXPIRY_WARNING` and refreshes the token
+(`TOKEN_REFRESH`) on the first request after 290 of the 300 token seconds are left; tick **Live (5 s)** so a request happens by itself. Keycloak's own `REFRESH_TOKEN` event appears a few seconds later (`source` = keycloak).
 
 ## 4. Verify automatically
 
@@ -73,6 +74,8 @@ scripts/verify.sh
 
 Runs 44 checks (23 for the demo apps, 21 for the log dashboard through `scripts/verify_logapp.py`): OIDC discovery and JWKS, PKCE redirect, API rejects missing/invalid tokens, the authorization
 matrix for alice and bob (RBAC), and the service-to-service flow (client credentials, allowed and denied resources), then a scripted browser session on the dashboard (login/logout events, API access, filters, Keycloak event sync, admin statistics, access control). Expected last line: `VERIFY OK` (exit code 0).
+
+Not covered by `verify_logapp.py`: token refresh, expiry warning and Keycloak `REFRESH_TOKEN` events (they need a waiting time or a changed `LOGAPP_EXPIRY_WARN_SECONDS`). They are covered by unit tests in `tests/test_log_app.py` and by the manual step above. The dashboard part can be run alone: `set -a; . ./.env; set +a; .venv/bin/python scripts/verify_logapp.py` (variables: `LOGAPP_PUBLIC_URL`, `KC_HOSTNAME`, `DEMO_REALM`, `DEMO_USER_PASSWORD`, `DEMO_ADMIN_PASSWORD`, optional `VERIFY_INSECURE=1` for self-signed certificates).
 
 Manual equivalent with curl (needs `DEMO_CLI_ENABLED=true`):
 
@@ -99,7 +102,7 @@ uv venv .venv && uv pip install --python .venv/bin/python -r requirements.txt   
 
 | Task | Command |
 |---|---|
-| Logs | `podman compose logs -f keycloak` (or `docker compose ...`) |
+| Logs | `podman compose logs -f keycloak logapp` (or `docker compose ...`) |
 | Stop, keep data | `scripts/stop.sh` |
 | Stop and delete database | `scripts/stop.sh --volumes` |
 | Re-import the realm after editing `demo-realm.json` | `scripts/stop.sh --volumes && scripts/start.sh` |
@@ -115,7 +118,7 @@ uv venv .venv && uv pip install --python .venv/bin/python -r requirements.txt   
 | `Cannot connect to Podman` | `podman machine start` |
 | Port already in use | Change `KEYCLOAK_PORT`/`WEBAPP_PORT`/`API_PORT`/`LOGAPP_PORT` **and** the matching `KC_HOSTNAME`/`WEBAPP_PUBLIC_URL`/`API_PUBLIC_URL`/`LOGAPP_PUBLIC_URL` in `.env`, then `scripts/stop.sh --volumes && scripts/start.sh` |
 | "Invalid username or password" for `admin` on the web app login | Wrong place: `admin` exists only in the `master` realm, use <http://localhost:8080/admin> |
-| Login: "Invalid parameter: redirect_uri" | `WEBAPP_PUBLIC_URL` changed after the realm was imported - re-import (`stop.sh --volumes`) or edit the client in the admin console |
+| Login: "Invalid parameter: redirect_uri" | `WEBAPP_PUBLIC_URL` (or `LOGAPP_PUBLIC_URL` for the dashboard) changed after the realm was imported - re-import (`stop.sh --volumes`) or edit the client in the admin console |
 | `verify.sh`: cannot obtain tokens | `.env` passwords differ from those imported (regenerated `.env` without wiping the DB), or `DEMO_CLI_ENABLED=false` |
 | API returns 401 with a valid token | Issuer mismatch: tokens must be obtained through `KC_HOSTNAME`, the API validates `iss` against it |
 | API returns 503 | Keycloak unreachable from the API container: `compose logs api keycloak` |

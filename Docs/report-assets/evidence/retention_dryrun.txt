@@ -1,0 +1,13 @@
+# retention SQL dry run on the running PostgreSQL (2026-11-18T17:50:03Z), everything inside BEGIN ... ROLLBACK
+## previous documented statement (ts is BIGINT epoch ms):
+BEGIN
+ERROR:  operator does not exist: bigint < timestamp with time zone
+LINE 1: BEGIN; DELETE FROM logapp.app_events WHERE ts < now() - inte...
+                                                      ^
+HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+## current statements:
+BEGIN
+DELETE 0
+DELETE 0
+DELETE 0
+ROLLBACK

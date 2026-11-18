@@ -1,0 +1,5 @@
+keycloak-demo-postgres-1	docker.io/library/postgres:17-alpine	Up 20 minutes (healthy)
+keycloak-demo-keycloak-1	docker.io/keycloak-demo/keycloak:26.8.2	Up 20 minutes (healthy)
+keycloak-demo-api-1	docker.io/keycloak-demo/api:1.0.0	Up 19 minutes (healthy)
+keycloak-demo-webapp-1	docker.io/keycloak-demo/webapp:1.0.0	Up 19 minutes (healthy)
+keycloak-demo-logapp-1	docker.io/keycloak-demo/logapp:1.0.0	Up 2 minutes (healthy)

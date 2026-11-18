@@ -17,4 +17,4 @@ COPY api_app.py api_auth.py ./
 RUN useradd --system --no-create-home app && chown -R app /app
 USER app
 EXPOSE 8082
-CMD ["gunicorn", "--bind", "0.0.0.0:8082", "--workers", "2", "--access-logfile", "-", "api_app:create_app()"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8082", "--no-control-socket", "--workers", "2", "--access-logfile", "-", "api_app:create_app()"]

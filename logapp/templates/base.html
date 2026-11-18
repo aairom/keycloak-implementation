@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Log dashboard{% endblock %} - Keycloak demo</title>
+  {% block head %}{% endblock %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header>
+  <a class="brand" href="{{ url_for('index') }}">Keycloak log dashboard</a>
+  <nav>
+    {% if user %}
+      <a href="{{ url_for('dashboard') }}">Logs</a>
+      {% if admin %}<a href="{{ url_for('admin') }}">Admin</a>{% endif %}
+      <span class="who">{{ user }}{% if admin %} <b class="tag">admin</b>{% endif %}</span>
+      <a class="btn secondary" href="{{ url_for('logout') }}">Sign out</a>
+    {% else %}
+      <a class="btn" href="{{ url_for('login') }}">Sign in</a>
+    {% endif %}
+  </nav>
+</header>
+<main>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}<p class="flash {{ category }}">{{ message }}</p>{% endfor %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</main>
+<footer>Realm login via OpenID Connect (Authorization Code + PKCE). Times are UTC.</footer>
+</body>
+</html>

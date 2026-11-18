@@ -33,3 +33,8 @@
 	import security_headers
 	reverse_proxy api:8082
 }
+
+{$LOGAPP_PUBLIC_HOST} {
+	import security_headers
+	reverse_proxy logapp:8083
+}

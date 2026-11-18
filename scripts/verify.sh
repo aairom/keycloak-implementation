@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # End-to-end verification of a running deployment (local or online). Exit 0 = every check passed.
 # Usage: scripts/verify.sh
-# Human-user checks need DEMO_CLI_ENABLED=true (password grant client "demo-cli"); service checks need SERVICE_CLIENT_SECRET. Requires curl + python3.
-# Reads KC_HOSTNAME, API_PUBLIC_URL, WEBAPP_PUBLIC_URL, DEMO_REALM and the demo passwords from .env.
+# Human-user checks need DEMO_CLI_ENABLED=true (password grant client "demo-cli"); service checks need SERVICE_CLIENT_SECRET.
+# Requires curl + python3; the log dashboard checks also need the python package 'requests' (.venv from requirements.txt).
+# Reads KC_HOSTNAME, API_PUBLIC_URL, WEBAPP_PUBLIC_URL, LOGAPP_PUBLIC_URL, DEMO_REALM and the demo passwords from .env.
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 if [ -f "$ROOT/.env" ]; then set -a; . "$ROOT/.env"; set +a; fi
@@ -74,6 +75,18 @@ else
 fi
 expect "wrong service secret is refused" 401 "$(code -d grant_type=client_credentials -d client_id=demo-service -d client_secret=wrong "$KC/realms/$REALM/protocol/openid-connect/token")"
 expect "service-to-service without token is rejected" 401 "$(code "$API/api/service/data")"
+
+echo "== Log dashboard (scripted browser session: Keycloak login form, dashboard, filters, admin panel)"
+PY="$ROOT/.venv/bin/python"; [ -x "$PY" ] || PY=python3
+if "$PY" -c 'import requests' 2>/dev/null; then
+  if [ -n "${VERIFY_CURL_OPTS:-}" ]; then export VERIFY_INSECURE=1; fi
+  "$PY" "$ROOT/scripts/verify_logapp.py" | sed '1d;/^$/d;/LOGAPP VERIFY/d' | tee /tmp/.verify_logapp.$$
+  grep -q '^FAIL' /tmp/.verify_logapp.$$ && FAIL=1
+  [ -s /tmp/.verify_logapp.$$ ] || bad "log dashboard checks produced no output"
+  rm -f /tmp/.verify_logapp.$$
+else
+  bad "python package 'requests' missing: run  uv venv && uv pip install -r requirements.txt"
+fi
 
 echo
 if [ "$FAIL" -eq 0 ]; then echo "VERIFY OK"; else echo "VERIFY FAILED"; fi

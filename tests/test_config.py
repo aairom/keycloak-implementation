@@ -14,10 +14,12 @@ def client(client_id):
 
 
 def test_realm_has_users_roles_groups_and_clients():
-    assert {u["username"] for u in REALM["users"]} == {"alice", "bob", "service-account-demo-service"}
+    assert {u["username"] for u in REALM["users"]} == {"alice", "bob", "service-account-demo-service",
+                                                       "service-account-demo-logapp"}
     assert {r["name"] for r in REALM["roles"]["realm"]} == {"app-user", "app-admin", "app-service"}
     assert {g["name"] for g in REALM["groups"]} == {"employees", "managers"}
-    assert {c["clientId"] for c in REALM["clients"]} == {"demo-cli", "demo-webapp", "demo-api", "demo-service"}
+    assert {c["clientId"] for c in REALM["clients"]} == {"demo-cli", "demo-webapp", "demo-api", "demo-service",
+                                                         "demo-logapp"}
 
 
 def test_app_admin_is_composite_of_app_user():
@@ -29,7 +31,7 @@ def test_no_clear_text_secrets_in_realm_file():
     """Every credential must be an ${ENV} placeholder, never a literal."""
     for u in (u for u in REALM["users"] if "credentials" in u or "serviceAccountClientId" not in u):
         assert re.fullmatch(r"\$\{[A-Z_]+\}", u["credentials"][0]["value"])
-    for cid in ("demo-webapp", "demo-api", "demo-service"):
+    for cid in ("demo-webapp", "demo-api", "demo-service", "demo-logapp"):
         assert re.fullmatch(r"\$\{[A-Z_]+\}", client(cid)["secret"])
 
 
@@ -39,6 +41,21 @@ def test_webapp_client_is_confidential_code_flow_with_pkce():
     assert c["implicitFlowEnabled"] is False and c["directAccessGrantsEnabled"] is False
     assert c["attributes"]["pkce.code.challenge.method"] == "S256"
     assert c["redirectUris"] == ["${WEBAPP_PUBLIC_URL}/callback"]  # exact URI, no wildcard
+
+
+def test_logapp_client_is_confidential_code_flow_with_pkce_and_event_reader():
+    c = client("demo-logapp")
+    assert c["publicClient"] is False and c["standardFlowEnabled"] is True and c["serviceAccountsEnabled"] is True
+    assert c["implicitFlowEnabled"] is False and c["directAccessGrantsEnabled"] is False
+    assert c["attributes"]["pkce.code.challenge.method"] == "S256"
+    assert c["redirectUris"] == ["${LOGAPP_PUBLIC_URL}/callback"]  # exact URI, no wildcard
+    # the admin API scope is optional: only the event-sync token request asks for it, user tokens do not carry it
+    # (listing optional scopes replaces the realm defaults, so the defaults must be listed too)
+    assert "kc-admin-api" in c["optionalClientScopes"] and "kc-admin-api" not in c["defaultClientScopes"]
+    assert {"profile", "email", "roles"} <= set(c["defaultClientScopes"])
+    sa = next(u for u in REALM["users"] if u.get("serviceAccountClientId") == "demo-logapp")
+    # least privilege: it may read events and nothing else in the realm-management client
+    assert sa["clientRoles"] == {"realm-management": ["view-events"]} and "realmRoles" not in sa
 
 
 def test_api_client_has_consistent_authorization_model():
@@ -66,7 +83,7 @@ def test_service_client_uses_client_credentials_only():
 
 
 def test_audience_mapper_present_on_token_issuing_clients():
-    for cid in ("demo-webapp", "demo-cli", "demo-service"):
+    for cid in ("demo-webapp", "demo-cli", "demo-service", "demo-logapp"):
         mappers = {m["name"]: m for m in client(cid)["protocolMappers"]}
         assert mappers["demo-api-audience"]["config"]["included.client.audience"] == "demo-api"
 
@@ -75,6 +92,15 @@ def test_realm_security_settings():
     assert REALM["bruteForceProtected"] is True
     assert REALM["sslRequired"] == "external"
     assert "length(" in REALM["passwordPolicy"]
+
+
+def test_keycloak_events_cover_what_the_dashboard_shows():
+    """REFRESH_TOKEN is not stored by default in Keycloak, so the realm must list the event types explicitly."""
+    assert REALM["eventsEnabled"] is True and REALM["adminEventsEnabled"] is True
+    enabled = set(REALM["enabledEventTypes"])
+    assert {"LOGIN", "LOGIN_ERROR", "LOGOUT", "REFRESH_TOKEN", "REFRESH_TOKEN_ERROR", "CLIENT_LOGIN",
+            "CLIENT_LOGIN_ERROR", "CODE_TO_TOKEN"} <= enabled
+    assert len(enabled) == len(REALM["enabledEventTypes"])  # no duplicates
 
 
 def test_theme_files_exist():
@@ -106,12 +132,27 @@ def test_env_example_has_no_real_secrets():
             assert "changeme" in line
 
 
-@pytest.mark.parametrize("path", ["keycloak/Dockerfile", "api/Dockerfile", "webapp/Dockerfile"])
+@pytest.mark.parametrize("path", ["keycloak/Dockerfile", "api/Dockerfile", "webapp/Dockerfile", "logapp/Dockerfile"])
 def test_dockerfiles_are_multistage_non_root_and_pinned(path):
     text = (ROOT / path).read_text()
     assert len(re.findall(r"^FROM ", text, re.M)) == 2
     assert re.search(r"^USER (?!root)\S+", text, re.M)
     assert ":latest" not in text
+
+
+def test_logapp_container_runs_one_worker_and_ships_every_module():
+    """Tokens live in process memory, so more than one worker would break sessions; all modules must be copied."""
+    text = (ROOT / "logapp/Dockerfile").read_text()
+    assert '"--workers", "1"' in text
+    copied = re.search(r"^COPY (\S.*?\.py) \./", text, re.M).group(1).split()
+    on_disk = sorted(p.name for p in (ROOT / "logapp").glob("*.py"))
+    assert sorted(copied) == on_disk
+
+
+def test_logapp_is_routed_by_caddy_and_depends_on_database_schema_not_new_infrastructure():
+    assert "{$LOGAPP_PUBLIC_HOST}" in (ROOT / "deploy/Caddyfile").read_text()
+    compose = (ROOT / "docker-compose.yml").read_text()
+    assert "@postgres:5432/${POSTGRES_DB}" in compose  # reuses the existing PostgreSQL server
 
 
 def test_scripts_are_executable():

@@ -1,4 +1,4 @@
-# Keycloak demo stack: PostgreSQL + Keycloak + REST API (resource server) + web app (OIDC client).
+# Keycloak demo stack: PostgreSQL + Keycloak + REST API (resource server) + web app and log dashboard (OIDC clients).
 # Works with `docker compose` and `podman compose`. All values come from .env (see .env.example).
 #   Local:   scripts/start.sh
 #   Online:  docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
@@ -51,7 +51,9 @@ services:
       WEBAPP_CLIENT_SECRET: ${WEBAPP_CLIENT_SECRET:?set WEBAPP_CLIENT_SECRET in .env}
       API_CLIENT_SECRET: ${API_CLIENT_SECRET:?set API_CLIENT_SECRET in .env}
       SERVICE_CLIENT_SECRET: ${SERVICE_CLIENT_SECRET:?set SERVICE_CLIENT_SECRET in .env}
+      LOGAPP_CLIENT_SECRET: ${LOGAPP_CLIENT_SECRET:?set LOGAPP_CLIENT_SECRET in .env}
       WEBAPP_PUBLIC_URL: ${WEBAPP_PUBLIC_URL:?set WEBAPP_PUBLIC_URL in .env}
+      LOGAPP_PUBLIC_URL: ${LOGAPP_PUBLIC_URL:?set LOGAPP_PUBLIC_URL in .env}
     ports:
       - "${BIND_ADDRESS:-127.0.0.1}:${KEYCLOAK_PORT:-8080}:8080"
     healthcheck:
@@ -106,6 +108,38 @@ services:
       - "${BIND_ADDRESS:-127.0.0.1}:${WEBAPP_PORT:-8081}:8081"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8081/healthz', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  logapp:
+    build: ./logapp
+    image: keycloak-demo/logapp:1.0.0
+    restart: unless-stopped
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    environment:
+      OIDC_DISCOVERY_URL: http://keycloak:8080/realms/${DEMO_REALM:-demo}/.well-known/openid-configuration
+      OIDC_CLIENT_ID: demo-logapp
+      OIDC_CLIENT_SECRET: ${LOGAPP_CLIENT_SECRET}
+      SERVICE_CLIENT_SECRET: ${SERVICE_CLIENT_SECRET}
+      LOGAPP_SESSION_SECRET: ${LOGAPP_SESSION_SECRET:?set LOGAPP_SESSION_SECRET in .env}
+      LOGAPP_PUBLIC_URL: ${LOGAPP_PUBLIC_URL}
+      LOGAPP_ADMIN_ROLE: ${LOGAPP_ADMIN_ROLE:-app-admin}
+      LOGAPP_SYNC_INTERVAL: ${LOGAPP_SYNC_INTERVAL:-10}
+      LOGAPP_EXPIRY_WARN_SECONDS: ${LOGAPP_EXPIRY_WARN_SECONDS:-60}
+      LOGAPP_PAGE_SIZE: ${LOGAPP_PAGE_SIZE:-25}
+      LOGAPP_TRUST_PROXY: ${LOGAPP_TRUST_PROXY:-false}
+      API_BASE_URL: http://api:8082
+      # Same PostgreSQL server as Keycloak, own schema "logapp" (created on start-up).
+      LOGAPP_DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${LOGAPP_PORT:-8083}:8083"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8083/healthz', timeout=3)"]
       interval: 10s
       timeout: 5s
       retries: 10

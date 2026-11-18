@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Admin{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Admin: usage statistics</h1>
+  <p>Range:
+    {% for r in ranges %}{% if r == range_key %}<b>{{ r }}</b>{% else %}<a href="{{ url_for('admin', range=r) }}">{{ r }}</a>{% endif %} {% endfor %}
+  </p>
+  <div class="stats">
+    <div><b>{{ stats.total_logins }}</b><span>Logins (Keycloak)</span></div>
+    <div class="{{ 'bad' if stats.failed_logins }}"><b>{{ stats.failed_logins }}</b><span>Failed attempts</span></div>
+    <div><b>{{ stats.active_sessions }}</b><span>Active sessions</span></div>
+    <div><b>{{ stats.token_refreshes }}</b><span>Token refreshes</span></div>
+    <div class="{{ 'warn' if stats.expiry_warnings }}"><b>{{ stats.expiry_warnings }}</b><span>Expiry warnings</span></div>
+    <div><b>{{ stats.http_requests }}</b><span>API/HTTP requests</span></div>
+    <div class="{{ 'bad' if stats.http_errors }}"><b>{{ stats.http_errors }}</b><span>HTTP errors</span></div>
+    <div><b>{{ stats.avg_duration_ms }}</b><span>Avg ms</span></div>
+    <div><b>{{ stats.s2s_requests }}</b><span>Service-to-service</span></div>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Most active users</h2>
+  <table><thead><tr><th>User</th><th>Logins</th></tr></thead><tbody>
+  {% for u in stats.top_users %}<tr><td>{{ u.username }}</td><td>{{ u.logins }}</td></tr>
+  {% else %}<tr><td colspan="2" class="muted">No logins in this range.</td></tr>{% endfor %}
+  </tbody></table>
+</section>
+
+<section class="card">
+  <h2>Logins per day (last {{ stats.daily | length }} days)</h2>
+  <table class="bars"><tbody>
+  {% for d in stats.daily %}
+    <tr><td class="nowrap">{{ d.day_ms | day }}</td>
+      <td><span class="bar ok" style="width: {{ (d.logins * 100 / peak) | round(0) }}%"></span>
+          <span class="bar bad" style="width: {{ (d.failed * 100 / peak) | round(0) }}%"></span>
+          {{ d.logins }} ok / {{ d.failed }} failed</td></tr>
+  {% endfor %}
+  </tbody></table>
+</section>
+
+<section class="card">
+  <h2>Recent sessions of this app</h2>
+  <table><thead><tr><th>User</th><th>Login</th><th>Last seen</th><th>Refreshes</th><th>Ended</th></tr></thead><tbody>
+  {% for s in sessions %}
+    <tr><td>{{ s.username }}</td><td class="nowrap">{{ s.login_at | ts }}</td><td class="nowrap">{{ s.last_seen_at | ts }}</td>
+        <td>{{ s.refreshes }}</td><td>{{ (s.logout_at | ts) ~ ' (' ~ s.end_reason ~ ')' if s.logout_at else 'active' }}</td></tr>
+  {% else %}<tr><td colspan="5" class="muted">No sessions yet.</td></tr>{% endfor %}
+  </tbody></table>
+</section>
+
+<section class="card">
+  <h2>Admin audit log</h2>
+  <table><thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Outcome</th></tr></thead><tbody>
+  {% for a in audit %}
+    <tr class="{{ 'bad' if a.outcome != 'ok' else '' }}"><td class="nowrap">{{ a.ts | ts }}</td><td>{{ a.actor }}</td>
+        <td>{{ a.action }}{% if a.target %} <span class="muted">{{ a.target }}</span>{% endif %}</td><td>{{ a.outcome }}</td></tr>
+  {% endfor %}
+  </tbody></table>
+</section>
+
+<section class="card">
+  <h2>Keycloak event sync</h2>
+  <p>{% if sync and sync.last_error %}<span class="tag bad">error</span> {{ sync.last_error }}
+     {% elif sync %}<span class="tag ok">ok</span> last run {{ sync.last_run_ms | ts if sync.last_run_ms else 'pending' }}{% else %}disabled{% endif %}</p>
+  <form method="post" action="{{ url_for('admin_sync') }}">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn secondary">Sync now</button>
+  </form>
+</section>
+{% endblock %}

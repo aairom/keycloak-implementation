@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+  <h1>Authentication and API log dashboard</h1>
+  <p>Sign in with your Keycloak account to see login and logout events, API access, token refreshes and
+  expiry warnings, and service-to-service requests. Administrators (realm role <code>app-admin</code>)
+  also get usage statistics.</p>
+  <p><a class="btn" href="{{ url_for('login') }}">Sign in with Keycloak</a></p>
+</section>
+{% endblock %}

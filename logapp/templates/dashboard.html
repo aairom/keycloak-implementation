@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Logs{% endblock %}
+{% block head %}{% if live %}<meta http-equiv="refresh" content="5">{% endif %}{% endblock %}
+{% block content %}
+<section class="card">
+  <h2>Session</h2>
+  <p>Signed in as <b>{{ user }}</b>. Access token expires in <b>{{ expires_in }}</b> s
+     (refreshed automatically in the background of the next request).</p>
+  <form method="post" class="inline">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    {% for key, c in api_calls.items() %}
+      <button formaction="{{ url_for('api_call', key=key) }}" class="btn secondary">{{ c[2] }}</button>
+    {% endfor %}
+    <button formaction="{{ url_for('s2s_call') }}" class="btn">Service-to-service call</button>
+  </form>
+  {% if api_result %}
+    <pre class="result">{{ api_result.request }} -&gt; HTTP {{ api_result.status }}
+{{ api_result.body | tojson(indent=2) }}</pre>
+  {% endif %}
+</section>
+
+{% if sync_error and admin %}<p class="flash error">Keycloak event sync: {{ sync_error }}</p>{% endif %}
+
+<section class="card">
+  <h2>Events <small>{{ total }} match{{ '' if total == 1 else 'es' }}</small></h2>
+  <form method="get" class="filters">
+    {% if admin %}<label>User <input name="username" value="{{ form.username }}" placeholder="alice"></label>{% endif %}
+    <label>Event type
+      <select name="event_type"><option value="">any</option>
+        {% for t in event_types %}<option {{ 'selected' if t == form.event_type }}>{{ t }}</option>{% endfor %}
+      </select></label>
+    <label>Category
+      <select name="kind"><option value="">any</option>
+        {% for k in kinds %}<option {{ 'selected' if k == form.kind }}>{{ k }}</option>{% endfor %}
+      </select></label>
+    <label>Origin
+      <select name="source"><option value="">any</option>
+        <option value="app" {{ 'selected' if form.source == 'app' }}>this app</option>
+        <option value="keycloak" {{ 'selected' if form.source == 'keycloak' }}>Keycloak</option>
+      </select></label>
+    <label>Status <input name="status" value="{{ form.status }}" placeholder="200, 4xx" size="6"></label>
+    <label>From <input type="date" name="date_from" value="{{ form.date_from }}"></label>
+    <label>To <input type="date" name="date_to" value="{{ form.date_to }}"></label>
+    <label>Search <input name="q" value="{{ form.q }}" placeholder="path or error"></label>
+    <label class="check"><input type="checkbox" name="live" value="1" {{ 'checked' if live }}> Live (5 s)</label>
+    <button class="btn">Apply</button>
+    <a class="btn secondary" href="{{ url_for('dashboard') }}">Reset</a>
+  </form>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Time (UTC)</th><th>Type</th><th>User</th><th>Request</th><th>Status</th><th>ms</th>
+      <th>Source</th><th>Details</th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr class="{{ severity(r.event_type, r.status) }}">
+        <td class="nowrap">{{ r.ts | ts }}</td>
+        <td><code>{{ r.event_type }}</code></td>
+        <td>{{ r.username or '' }}</td>
+        <td class="nowrap">{% if r.method %}{{ r.method }} {{ r.path }}{% elif r.client_id %}client {{ r.client_id }}{% endif %}</td>
+        <td>{{ r.status or '' }}</td>
+        <td>{{ r.duration_ms if r.duration_ms is not none else '' }}</td>
+        <td>{{ r.source }}/{{ r.kind }}</td>
+        <td>{{ r.error or '' }}{% if r.ip %} <span class="muted">{{ r.ip }}</span>{% endif %}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="8" class="muted">No events match these filters.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="pager">
+    {% if page > 1 %}<a href="{{ url_for('dashboard', page=page-1, **args) }}">&laquo; Newer</a>{% endif %}
+    Page {{ page }} of {{ pages }}
+    {% if page < pages %}<a href="{{ url_for('dashboard', page=page+1, **args) }}">Older &raquo;</a>{% endif %}
+    &middot; <a href="{{ url_for('events_json', **args) }}">JSON</a>
+  </p>
+</section>
+{% endblock %}

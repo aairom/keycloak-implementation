@@ -1,4 +1,4 @@
-"""Shared test fixtures: make api/ and webapp/ importable and provide a throw-away RSA signing key."""
+"""Shared test fixtures: make api/, webapp/ and logapp/ importable and provide a throw-away RSA signing key."""
 import sys
 import time
 from pathlib import Path
@@ -8,8 +8,8 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 ROOT = Path(__file__).resolve().parents[1]
-# Both services use top-level module names (api_app, api_auth, app, helpers).
-for sub in ("api", "webapp"):
+# The services use top-level module names (api_app, api_auth, app, helpers, log_app, store ...).
+for sub in ("api", "webapp", "logapp"):
     sys.path.insert(0, str(ROOT / sub))
 
 ISSUER = "https://auth.test/realms/demo"

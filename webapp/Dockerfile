@@ -19,4 +19,4 @@ COPY static ./static
 RUN useradd --system --no-create-home app && chown -R app /app
 USER app
 EXPOSE 8081
-CMD ["gunicorn", "--bind", "0.0.0.0:8081", "--workers", "2", "--access-logfile", "-", "app:get_wsgi_app()"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8081", "--no-control-socket", "--workers", "2", "--access-logfile", "-", "app:get_wsgi_app()"]

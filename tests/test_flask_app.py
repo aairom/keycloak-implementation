@@ -76,3 +76,75 @@ def test_factory_builds_connector_from_environment(monkeypatch, fake_kc):
     monkeypatch.setattr(flask_app, "KeycloakConnector",
                         lambda cfg: KeycloakConnector(cfg, session=fake_kc, sleep=lambda _s: None))
     assert flask_app.create_app().test_client().get("/").status_code == 200
+
+
+def test_main_explains_missing_configuration(monkeypatch, capsys):
+    for name in ("SERVER_URL", "REALM", "CLIENT_ID", "REDIRECT_URI"):
+        monkeypatch.delenv(f"KEYCLOAK_{name}", raising=False)
+    assert flask_app.main() == 2
+    err = capsys.readouterr().err
+    assert "server_url is required" in err and "run_connector_example.sh" in err and "Traceback" not in err
+
+
+def test_main_reports_unreachable_keycloak(monkeypatch, capsys):
+    from keycloak_connector import DiscoveryError
+
+    def down(_cfg=None):
+        raise DiscoveryError("cannot reach Keycloak")
+    monkeypatch.setattr(flask_app, "create_app", down)
+    assert flask_app.main() == 3
+    assert "not reachable" in capsys.readouterr().err
+
+
+def test_main_starts_the_server(monkeypatch):
+    started = {}
+
+    class FakeApp:
+        def run(self, host, port):
+            started.update(host=host, port=port)
+    monkeypatch.setattr(flask_app, "create_app", lambda: FakeApp())
+    monkeypatch.setenv("PORT", "9100")
+    assert flask_app.main() == 0 and started == {"host": "127.0.0.1", "port": 9100}
+
+
+def test_secret_key_is_random_when_not_configured(connector, monkeypatch):
+    monkeypatch.delenv("FLASK_SECRET_KEY", raising=False)
+    a, b = flask_app.create_app(connector), flask_app.create_app(connector)
+    assert a.secret_key != b.secret_key and len(a.secret_key) == 64
+    monkeypatch.setenv("FLASK_SECRET_KEY", "fixed-key-for-test")
+    assert flask_app.create_app(connector).secret_key == "fixed-key-for-test"
+
+
+def test_pages_are_readable_html(client):
+    html = client.get("/").get_data(as_text=True)
+    assert "<style>" in html and "font:18px" in html and "viewport" in html and "/logout" in html
+
+
+def test_callback_without_cookie_explains_the_host_name_rule(client):
+    resp = client.get("/callback", query_string={"code": "x", "state": "y"})
+    body = resp.get_data(as_text=True)
+    assert resp.status_code == 400 and "same host name" in body and "https://app.test/callback" in body
+
+
+def test_failed_callback_shows_and_logs_the_reason(client, fake_kc, caplog):
+    location = client.get("/login").headers["Location"]
+    params = {**fake_kc.authorize(location), "state": "forged"}
+    with caplog.at_level("WARNING", logger="flask_app"):
+        resp = client.get("/callback", query_string=params)
+    body = resp.get_data(as_text=True)
+    assert resp.status_code == 400 and "StateMismatchError" in body and "state of the callback" in body
+    assert "StateMismatchError" in caplog.text and "code=" not in caplog.text
+
+
+def test_keycloak_error_is_shown_escaped(client):
+    client.get("/login")
+    resp = client.get("/callback", query_string={"error": "<script>x</script>"})
+    body = resp.get_data(as_text=True)
+    assert resp.status_code == 401 and "<script>x</script>" not in body and "&lt;script&gt;" in body
+
+
+def test_session_cookie_has_its_own_name(client, fake_kc):
+    resp = client.get("/login")
+    cookies = resp.headers.getlist("Set-Cookie")
+    assert any(c.startswith("connector_example_session=") for c in cookies)
+    assert not any(c.startswith("session=") for c in cookies)

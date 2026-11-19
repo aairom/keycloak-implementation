@@ -252,6 +252,6 @@ request host, while front-channel URLs and the `iss` claim stay on `KC_HOSTNAME`
 
 | Level | Tooling | Scope |
 |---|---|---|
-| Unit | pytest (369 tests; the connector package has 99 % line and branch coverage) | Log dashboard (store, event sync, token lifecycle, filters, access control, verification script), token validation (expiry, issuer, audience, forged and `alg=none` tokens), policy client, API endpoints with a fake policy point, web app flows with a stubbed Authlib client, service client token caching, helpers |
+| Unit | pytest (378 tests; the connector package has 99 % line and branch coverage) | Log dashboard (store, event sync, token lifecycle, filters, access control, verification script), token validation (expiry, issuer, audience, forged and `alg=none` tokens), policy client, API endpoints with a fake policy point, web app flows with a stubbed Authlib client, service client token caching, helpers |
 | Configuration | pytest | Realm file consistency (policy/resource/scope references), no clear-text secrets, every compose variable documented, every realm placeholder passed to Keycloak, Dockerfile policy |
 | End to end | `scripts/verify.sh` | Runs against the live stack, local or online: discovery, JWKS, PKCE, 401/403/200/201 matrix with real user and service tokens, then `verify_logapp.py` (scripted browser session on the dashboard) and `verify_connector.py` (the connector package against the live realm) |

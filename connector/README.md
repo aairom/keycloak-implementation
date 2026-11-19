@@ -71,7 +71,12 @@ session["tokens"] = tokens.to_dict()
 return redirect(kc.logout_url(tokens))
 ```
 
-A complete Flask application is in [`examples/flask_app.py`](examples/flask_app.py).
+A complete Flask application is in [`examples/flask_app.py`](examples/flask_app.py). It reads the `KEYCLOAK_*`
+variables from the table below (`FLASK_SECRET_KEY` is optional; a random one is generated per start) and prints
+what is missing if the configuration is incomplete. Start it with `python connector/examples/flask_app.py` after
+exporting the variables. With the demo stack of this repository, `scripts/run_connector_example.sh` does it for you:
+it reads `.env`, uses the registered `demo-logapp` client, pauses the log dashboard (same port 8083) and starts
+it again when you press Ctrl+C. Then open http://localhost:8083/ (use `localhost`, not `127.0.0.1`).
 
 ## Configuration
 

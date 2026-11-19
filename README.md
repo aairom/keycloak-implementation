@@ -102,7 +102,7 @@ scripts/           start, stop, verify (+ verify_logapp.py, verify_connector.py)
 logapp/            Flask log dashboard: event capture, Keycloak event sync, admin stats (PostgreSQL schema `logapp`)
 service/           Service-to-service client (client credentials grant)
 connector/         Reusable Keycloak connector package (`keycloak_connector`), README, Flask example
-tests/             369 unit and configuration tests (pytest)
+tests/             378 unit and configuration tests (pytest)
 Docs/              Quickstart, Deployment, Configuration, Architecture
 ```
 

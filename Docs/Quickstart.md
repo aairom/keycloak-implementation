@@ -75,7 +75,7 @@ scripts/verify.sh
 Runs 44 checks (23 for the demo apps, 21 for the log dashboard through `scripts/verify_logapp.py`): OIDC discovery and JWKS, PKCE redirect, API rejects missing/invalid tokens, the authorization
 matrix for alice and bob (RBAC), and the service-to-service flow (client credentials, allowed and denied resources), then a scripted browser session on the dashboard (login/logout events, API access, filters, Keycloak event sync, admin statistics, access control). Expected last line: `VERIFY OK` (exit code 0).
 
-Not covered by `verify_logapp.py`: token refresh, expiry warning and Keycloak `REFRESH_TOKEN` events (they need a waiting time or a changed `LOGAPP_EXPIRY_WARN_SECONDS`). They are covered by unit tests in `tests/test_log_app.py` and by the manual step above. The dashboard part can be run alone: `set -a; . ./.env; set +a; .venv/bin/python scripts/verify_logapp.py` (variables: `LOGAPP_PUBLIC_URL`, `KC_HOSTNAME`, `DEMO_REALM`, `DEMO_USER_PASSWORD`, `DEMO_ADMIN_PASSWORD`, optional `VERIFY_INSECURE=1` for self-signed certificates).
+Not covered by `verify_logapp.py`: token refresh, expiry warning and Keycloak `REFRESH_TOKEN` events (they need a waiting time or a changed `LOGAPP_EXPIRY_WARN_SECONDS`). They are covered by unit tests in `tests/test_log_app.py` and by the manual step above. The dashboard part can be run alone: `.venv/bin/python scripts/verify_logapp.py`. It reads `.env` itself for every variable that is not already exported (`LOGAPP_PUBLIC_URL`, `DEMO_USER_PASSWORD`, `DEMO_ADMIN_PASSWORD`, optional `VERIFY_INSECURE=1` for self-signed certificates); exported variables win over `.env`.
 
 Manual equivalent with curl (needs `DEMO_CLI_ENABLED=true`):
 
@@ -124,4 +124,5 @@ uv venv .venv && uv pip install --python .venv/bin/python -r requirements.txt   
 | API returns 503 | Keycloak unreachable from the API container: `compose logs api keycloak` |
 | Edited the theme and see no change | Rebuild: `scripts/start.sh` (the theme is baked into the image) |
 | Dashboard: after a restart you are asked to sign in again | By design: tokens live in the log app's memory (one gunicorn worker); old sessions are closed with reason `server_restart` |
+| `verify_logapp.py`: `login of alice failed: Keycloak says "Invalid username or password."` | The password the script used is not alice's. Older versions of the script did not read `.env` and sent an empty password when `DEMO_USER_PASSWORD` was not exported; the script now loads `.env` and names missing variables. If the message persists, `.env` differs from the imported realm: `scripts/stop.sh --volumes && scripts/start.sh`. The Keycloak side shows `LOGIN_ERROR ... invalid_user_credentials` in the admin console under Events |
 | Dashboard shows no `source=keycloak` rows | Sync needs the `kc-admin-api` scope and `view-events`; check the Admin page (last sync error) and `compose logs logapp` |

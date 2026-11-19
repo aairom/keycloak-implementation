@@ -19,16 +19,16 @@ def reset_failures():
 class FakeSession:
     """Stands in for requests.Session: GET /login serves the Keycloak form, POST goes to the callback."""
 
-    def __init__(self, post_url=BASE + "/dashboard", form=FORM):
+    def __init__(self, post_url=BASE + "/dashboard", form=FORM, post_text=""):
         self.verify, self.cookies, self.posted = True, [], []
-        self.post_url, self.form = post_url, form
+        self.post_url, self.form, self.post_text = post_url, form, post_text
 
     def get(self, url, **kw):
         return SimpleNamespace(text=self.form, url="http://kc.test/login")
 
     def post(self, url, data=None, **kw):
         self.posted.append((url, data))
-        return SimpleNamespace(url=self.post_url)
+        return SimpleNamespace(url=self.post_url, text=self.post_text, status_code=200)
 
 
 def test_check_counts_failures(capsys):
@@ -70,6 +70,47 @@ def test_sign_in_fails_without_form_or_when_login_is_refused(monkeypatch):
     monkeypatch.setattr(v.requests, "Session", lambda: FakeSession(post_url="http://kc.test/authenticate?error"))
     with pytest.raises(RuntimeError, match="login of a failed"):
         v.sign_in(BASE, "a", "b", True)
+
+
+def test_sign_in_failure_quotes_the_message_keycloak_shows():
+    page = '<span class="pf-m-error kc-feedback-text"> Invalid username or password. </span>'
+    assert v.keycloak_message(page) == "Invalid username or password."
+    assert v.keycloak_message("<html>nothing</html>") is None
+
+
+def test_sign_in_failure_reports_keycloak_reason_and_hides_the_query_string(monkeypatch):
+    page = '<span class="kc-feedback-text">Invalid username or password.</span>'
+    monkeypatch.setattr(v.requests, "Session", lambda: FakeSession(
+        post_url="http://kc.test/authenticate?session_code=SECRETCODE", post_text=page))
+    with pytest.raises(RuntimeError) as exc:
+        v.sign_in(BASE, "alice", "", True)
+    assert 'Keycloak says "Invalid username or password."' in str(exc.value)
+    assert "SECRETCODE" not in str(exc.value)
+
+
+def test_load_dotenv_fills_only_missing_variables(tmp_path, monkeypatch):
+    env = tmp_path / ".env"
+    env.write_text("# comment\nVF_NEW=from-file\nVF_KEPT=from-file\nVF_QUOTED=\"a b\"\nnot a pair\n")
+    monkeypatch.setenv("VF_KEPT", "from-shell")
+    monkeypatch.delenv("VF_NEW", raising=False)
+    monkeypatch.delenv("VF_QUOTED", raising=False)
+    v.load_dotenv(env)
+    assert (v.os.environ["VF_NEW"], v.os.environ["VF_KEPT"], v.os.environ["VF_QUOTED"]) == \
+        ("from-file", "from-shell", "a b")
+    v.load_dotenv(tmp_path / "missing.env")  # no file: no error
+    for name in ("VF_NEW", "VF_QUOTED"):
+        v.os.environ.pop(name, None)
+
+
+def test_main_names_the_missing_passwords_instead_of_trying_an_empty_login(monkeypatch, capsys):
+    monkeypatch.setattr(v, "load_dotenv", lambda path: None)
+    monkeypatch.delenv("DEMO_USER_PASSWORD", raising=False)
+    monkeypatch.setenv("DEMO_ADMIN_PASSWORD", "x")
+    called = []
+    monkeypatch.setattr(v.requests, "get", lambda *a, **k: called.append(a))
+    assert v.main() == 1
+    out = capsys.readouterr().out
+    assert "FAIL  DEMO_USER_PASSWORD not set" in out and not called
 
 
 def test_csrf_and_events_helpers():
@@ -159,6 +200,9 @@ class Dashboard:
 
 
 def run_main(monkeypatch, dash, capsys, anonymous_redirects=True):
+    monkeypatch.setattr(v, "load_dotenv", lambda path: None)  # never read the developer's real .env in unit tests
+    monkeypatch.setenv("DEMO_USER_PASSWORD", "test-alice")
+    monkeypatch.setenv("DEMO_ADMIN_PASSWORD", "test-bob")
     monkeypatch.setenv("LOGAPP_PUBLIC_URL", BASE)
     monkeypatch.setattr(v.requests, "get", lambda url, **kw: SimpleNamespace(
         json=lambda: {"database": dash.healthy}, status_code=302, headers={"Location": "/login"}))
@@ -187,6 +231,9 @@ def test_main_fails_when_database_is_down(monkeypatch, capsys):
 
 
 def test_main_reports_login_problems(monkeypatch, capsys):
+    monkeypatch.setattr(v, "load_dotenv", lambda path: None)
+    monkeypatch.setenv("DEMO_USER_PASSWORD", "test-alice")
+    monkeypatch.setenv("DEMO_ADMIN_PASSWORD", "test-bob")
     monkeypatch.setenv("LOGAPP_PUBLIC_URL", BASE)
     monkeypatch.setattr(v.requests, "get", lambda url, **kw: SimpleNamespace(
         json=lambda: {"database": True}, status_code=302, headers={"Location": "/login"}))

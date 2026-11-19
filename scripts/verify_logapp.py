@@ -3,6 +3,7 @@
 
 Logs in through the real Keycloak login form, exercises the dashboard and prints ``PASS``/``FAIL`` lines.
 Environment: LOGAPP_PUBLIC_URL, KC_HOSTNAME, DEMO_REALM, DEMO_USER_PASSWORD, DEMO_ADMIN_PASSWORD, VERIFY_INSECURE.
+Variables that are not set are read from ``.env`` in the project root, so the script also works when started directly.
 Exit code 0 = every check passed. Needs only the standard library plus ``requests``.
 """
 from __future__ import annotations
@@ -12,10 +13,29 @@ import re
 import sys
 import time
 from html import unescape
+from pathlib import Path
 
 import requests
 
 FAILED = 0
+REQUIRED_ENV = ("DEMO_USER_PASSWORD", "DEMO_ADMIN_PASSWORD")
+
+
+def load_dotenv(path: Path) -> None:
+    """Fill variables that are not set yet from a ``KEY=value`` file; the real environment always wins."""
+    if not path.is_file():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        key, sep, value = line.partition("=")
+        key = key.strip()
+        if sep and key and not key.startswith("#"):
+            os.environ.setdefault(key, value.strip().strip('"').strip("'"))
+
+
+def keycloak_message(html: str) -> str | None:
+    """The error Keycloak prints on its login form (e.g. "Invalid username or password.")."""
+    m = re.search(r'kc-feedback-text[^>]*>\s*([^<]+?)\s*<', html)
+    return unescape(m.group(1)) if m else None
 
 
 def check(ok: bool, text: str) -> None:
@@ -43,7 +63,9 @@ def sign_in(base: str, username: str, password: str, verify: bool) -> requests.S
         raise RuntimeError(f"no Keycloak login form found (landed on {page.url})")
     resp = s.post(unescape(m.group(1)), data={"username": username, "password": password}, timeout=20)
     if not resp.url.startswith(base):
-        raise RuntimeError(f"login of {username} failed (landed on {resp.url})")
+        reason = keycloak_message(resp.text) or f"HTTP {resp.status_code}"
+        raise RuntimeError(f"login of {username} failed: Keycloak says \"{reason}\" "
+                           f"(landed on {resp.url.split('?')[0]})")
     return s
 
 
@@ -57,8 +79,13 @@ def events(session: requests.Session, base: str, **params) -> list[dict]:
 
 
 def main() -> int:
+    load_dotenv(Path(__file__).resolve().parents[1] / ".env")
     base = os.environ.get("LOGAPP_PUBLIC_URL", "http://localhost:8083").rstrip("/")
     verify = not os.environ.get("VERIFY_INSECURE")
+    missing = [name for name in REQUIRED_ENV if not os.environ.get(name)]
+    if missing:
+        check(False, f"{', '.join(missing)} not set: export them or create .env (scripts/init-env.sh)")
+        return 1
     alice_pw, bob_pw = os.environ.get("DEMO_USER_PASSWORD", ""), os.environ.get("DEMO_ADMIN_PASSWORD", "")
     print(f"== Log dashboard ({base})")
 

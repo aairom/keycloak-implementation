@@ -158,3 +158,90 @@ def test_logapp_is_routed_by_caddy_and_depends_on_database_schema_not_new_infras
 def test_scripts_are_executable():
     for s in (ROOT / "scripts").glob("*.sh"):
         assert s.stat().st_mode & 0o111, f"{s.name} is not executable"
+
+
+# ---------------------------------------------------------------------------------------------------
+# keycloak_connector.config.KeycloakConfig (the reusable connector package in connector/)
+# ---------------------------------------------------------------------------------------------------
+from keycloak_connector import ConfigError, KeycloakConfig  # noqa: E402
+
+BASE = dict(server_url="https://auth.example.com/", realm="r", client_id="c", redirect_uri="https://app.example.com/cb")
+
+
+def test_normalises_server_url_and_derives_endpoints():
+    cfg = KeycloakConfig(**BASE)
+    assert cfg.server_url == "https://auth.example.com"
+    assert cfg.issuer == "https://auth.example.com/realms/r"
+    assert cfg.discovery_url.endswith("/realms/r/.well-known/openid-configuration")
+    assert cfg.is_confidential is False
+
+
+def test_confidential_when_secret_given_and_empty_secret_means_public():
+    assert KeycloakConfig(client_secret="x", **BASE).is_confidential
+    assert KeycloakConfig(client_secret="", **BASE).client_secret is None
+
+
+def test_repr_never_shows_the_secret():
+    secret = "".join(["top", "-", "hidden"])
+    text = repr(KeycloakConfig(client_secret=secret, **BASE))
+    assert secret not in text and "client_secret=<set>" in text
+    assert "client_secret=<none>" in repr(KeycloakConfig(**BASE))
+
+
+@pytest.mark.parametrize("field", ["server_url", "realm", "client_id", "redirect_uri"])
+def test_missing_required_field(field):
+    with pytest.raises(ConfigError, match=field):
+        KeycloakConfig(**{**BASE, field: ""})
+
+
+def test_all_problems_reported_together():
+    with pytest.raises(ConfigError) as info:
+        KeycloakConfig(server_url="ftp://x", realm="r", client_id="c", redirect_uri="/relative",
+                       post_logout_redirect_uri="nope", scopes=("profile",), timeout=0, retries=-1,
+                       allowed_algs=("none",))
+    msg = str(info.value)
+    for part in ("server_url must be", "redirect_uri must be", "post_logout_redirect_uri", "openid", "timeout",
+                 "retries", "allowed_algs"):
+        assert part in msg
+
+
+def test_empty_algorithm_list_rejected():
+    with pytest.raises(ConfigError, match="allowed_algs"):
+        KeycloakConfig(allowed_algs=(), **BASE)
+
+
+def test_from_env_reads_every_variable():
+    env = {"KEYCLOAK_SERVER_URL": "https://auth.example.com", "KEYCLOAK_REALM": "r", "KEYCLOAK_CLIENT_ID": "c",
+           "KEYCLOAK_CLIENT_SECRET": "s", "KEYCLOAK_REDIRECT_URI": "https://app.example.com/cb",
+           "KEYCLOAK_SCOPES": "openid,email", "KEYCLOAK_POST_LOGOUT_REDIRECT_URI": "https://app.example.com/",
+           "KEYCLOAK_AUDIENCE": "api", "KEYCLOAK_USE_PKCE": "false", "KEYCLOAK_TIMEOUT": "3.5",
+           "KEYCLOAK_RETRIES": "4", "KEYCLOAK_LEEWAY": "20", "KEYCLOAK_REFRESH_MARGIN": "60",
+           "KEYCLOAK_JWKS_TTL": "99"}
+    cfg = KeycloakConfig.from_env(env)
+    assert cfg.scopes == ("openid", "email") and cfg.audience == "api" and cfg.use_pkce is False
+    assert (cfg.timeout, cfg.retries, cfg.leeway, cfg.refresh_margin, cfg.jwks_ttl) == (3.5, 4, 20, 60, 99)
+    assert cfg.verify is True
+
+
+def test_from_env_tls_options():
+    base = {"KEYCLOAK_SERVER_URL": "https://a.example.com", "KEYCLOAK_REALM": "r", "KEYCLOAK_CLIENT_ID": "c",
+            "KEYCLOAK_REDIRECT_URI": "https://b.example.com/cb"}
+    assert KeycloakConfig.from_env({**base, "KEYCLOAK_VERIFY_TLS": "false"}).verify is False
+    assert KeycloakConfig.from_env({**base, "KEYCLOAK_CA_BUNDLE": "/etc/ca.pem"}).verify == "/etc/ca.pem"
+
+
+def test_from_env_custom_prefix_and_process_environment(monkeypatch):
+    monkeypatch.setenv("MYAPP_KC_SERVER_URL", "https://auth.example.com")
+    monkeypatch.setenv("MYAPP_KC_REALM", "r")
+    monkeypatch.setenv("MYAPP_KC_CLIENT_ID", "c")
+    monkeypatch.setenv("MYAPP_KC_REDIRECT_URI", "https://app.example.com/cb")
+    assert KeycloakConfig.from_env(prefix="MYAPP_KC_").realm == "r"
+
+
+def test_from_env_reports_bad_numbers_and_missing_values():
+    env = {"KEYCLOAK_SERVER_URL": "https://a.example.com", "KEYCLOAK_REALM": "r", "KEYCLOAK_CLIENT_ID": "c",
+           "KEYCLOAK_REDIRECT_URI": "https://b.example.com/cb", "KEYCLOAK_TIMEOUT": "soon"}
+    with pytest.raises(ConfigError, match="TIMEOUT"):
+        KeycloakConfig.from_env(env)
+    with pytest.raises(ConfigError, match="server_url"):
+        KeycloakConfig.from_env({})

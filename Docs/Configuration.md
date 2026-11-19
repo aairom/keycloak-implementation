@@ -185,6 +185,17 @@ OIDC_CLIENT_ID=demo-webapp OIDC_CLIENT_SECRET="$WEBAPP_CLIENT_SECRET" API_BASE_U
 Stop the containerised `webapp` and `api` first (`podman compose stop webapp api`) so the ports are free.
 Use `localhost`, not `127.0.0.1`, in the browser: the redirect URI is `http://localhost:8081/callback`.
 
+## Keycloak connector (`connector/`)
+
+The connector reads its own variables (prefix `KEYCLOAK_`, configurable) through `KeycloakConfig.from_env()`:
+`KEYCLOAK_SERVER_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_CLIENT_SECRET`, `KEYCLOAK_REDIRECT_URI`,
+`KEYCLOAK_POST_LOGOUT_REDIRECT_URI`, `KEYCLOAK_SCOPES`, `KEYCLOAK_AUDIENCE`, `KEYCLOAK_USE_PKCE`,
+`KEYCLOAK_VERIFY_TLS`, `KEYCLOAK_CA_BUNDLE`, `KEYCLOAK_TIMEOUT`, `KEYCLOAK_RETRIES`, `KEYCLOAK_LEEWAY`,
+`KEYCLOAK_REFRESH_MARGIN`, `KEYCLOAK_JWKS_TTL`. They are not used by the demo containers; the full table with
+defaults is in [`connector/README.md`](../connector/README.md#configuration).
+`scripts/verify_connector.py` reuses `KC_HOSTNAME`, `DEMO_REALM`, `LOGAPP_PUBLIC_URL`, `LOGAPP_CLIENT_SECRET`,
+`SERVICE_CLIENT_SECRET`, `DEMO_USER_PASSWORD` and `DEMO_ADMIN_PASSWORD` from `.env`.
+
 ## Extending the test application
 
 | Task | Steps |

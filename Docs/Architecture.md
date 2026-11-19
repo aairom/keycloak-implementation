@@ -186,6 +186,30 @@ explicitly (`keycloak/realm/demo-realm.json`), including `REFRESH_TOKEN`, `LOGOU
 The `TOKEN_REFRESH` rows of the application and the `REFRESH_TOKEN` rows of Keycloak are two views of the same
 operation and are kept apart by the `source` column.
 
+## Keycloak connector (`connector/`)
+
+A reusable, framework-agnostic Python package that wraps the OIDC client logic. It is independent of the demo apps:
+the apps keep their own integration code, the connector is what you copy into a new application.
+
+```mermaid
+flowchart LR
+    App[Your web app] -->|initialize, login_request, handle_callback,<br/>ensure_fresh, logout_url| C[KeycloakConnector]
+    C --> KS[KeyStore<br/>discovery + JWKS cache, kid rotation]
+    C --> H[HttpClient<br/>timeout, TLS, retry with backoff]
+    C --> T[TokenSet / LoginRequest]
+    KS --> H
+    H -->|discovery, certs, token, userinfo, logout| KC[(Keycloak)]
+```
+
+| Module | Responsibility |
+|---|---|
+| `config.py` | Validated immutable `KeycloakConfig`, `from_env()` |
+| `discovery.py` | `HttpClient` (retries) and `KeyStore` (discovery, JWKS cache, rotation, rate-limited refetch) |
+| `connector.py` | Login URL, callback handling, token exchange and validation, refresh, logout, client credentials, userinfo |
+| `tokens.py`, `pkce.py`, `errors.py` | Value objects, PKCE and hash helpers, typed exceptions |
+
+See [`connector/README.md`](../connector/README.md) for usage, configuration and troubleshooting.
+
 ## Network and URL design
 
 Browsers and containers reach Keycloak by different names, which is the classic Keycloak container pitfall:
@@ -228,6 +252,6 @@ request host, while front-channel URLs and the `iss` claim stay on `KC_HOSTNAME`
 
 | Level | Tooling | Scope |
 |---|---|---|
-| Unit | pytest (213 tests) | Log dashboard (store, event sync, token lifecycle, filters, access control, verification script), token validation (expiry, issuer, audience, forged and `alg=none` tokens), policy client, API endpoints with a fake policy point, web app flows with a stubbed Authlib client, service client token caching, helpers |
+| Unit | pytest (369 tests; the connector package has 99 % line and branch coverage) | Log dashboard (store, event sync, token lifecycle, filters, access control, verification script), token validation (expiry, issuer, audience, forged and `alg=none` tokens), policy client, API endpoints with a fake policy point, web app flows with a stubbed Authlib client, service client token caching, helpers |
 | Configuration | pytest | Realm file consistency (policy/resource/scope references), no clear-text secrets, every compose variable documented, every realm placeholder passed to Keycloak, Dockerfile policy |
-| End to end | `scripts/verify.sh` | Runs against the live stack, local or online: discovery, JWKS, PKCE, 401/403/200/201 matrix with real user and service tokens, then `verify_logapp.py` (scripted browser session on the dashboard) |
+| End to end | `scripts/verify.sh` | Runs against the live stack, local or online: discovery, JWKS, PKCE, 401/403/200/201 matrix with real user and service tokens, then `verify_logapp.py` (scripted browser session on the dashboard) and `verify_connector.py` (the connector package against the live realm) |

@@ -88,6 +88,16 @@ else
   bad "python package 'requests' missing: run  uv venv && uv pip install -r requirements.txt"
 fi
 
+echo "== Keycloak connector (connector/: discovery, Authorization Code + PKCE, validation, refresh, logout)"
+if "$PY" -c 'import requests, jwt' 2>/dev/null; then
+  "$PY" "$ROOT/scripts/verify_connector.py" | sed '1d;/^$/d;/CONNECTOR VERIFY/d' | tee /tmp/.verify_connector.$$
+  grep -q '^FAIL' /tmp/.verify_connector.$$ && FAIL=1
+  [ -s /tmp/.verify_connector.$$ ] || bad "connector checks produced no output"
+  rm -f /tmp/.verify_connector.$$
+else
+  bad "python packages 'requests' and 'PyJWT' missing: run  uv venv && uv pip install -r requirements.txt"
+fi
+
 echo
 if [ "$FAIL" -eq 0 ]; then echo "VERIFY OK"; else echo "VERIFY FAILED"; fi
 exit "$FAIL"

@@ -11,6 +11,7 @@ locally with **one command** and deploys online behind automatic HTTPS.
 | Client applications (confidential web app, resource-server API, service client, public CLI client) | `webapp/`, `api/`, `service/`, `scripts/verify.sh` |
 | Service-to-service authentication (client credentials, machine role `app-service`) | `service/service_client.py`, client `demo-service` |
 | Log dashboard: auth events, API access, token refresh/expiry, service-to-service, admin statistics | `logapp/`, client `demo-logapp` |
+| Reusable Keycloak connector module: initialize, login (PKCE), token validation, refresh, logout, with its own README, unit tests and live integration test | [`connector/`](connector/README.md), `scripts/verify_connector.py` |
 | Reproducible containers (Docker and Podman) | `docker-compose.yml`, `*/Dockerfile` |
 | Online deployment with Let's Encrypt HTTPS | `docker-compose.prod.yml`, `deploy/Caddyfile` |
 
@@ -97,10 +98,11 @@ webapp/            Flask OIDC client (Authlib) + Dockerfile
 api/               Flask resource server (PyJWT + Authorization Services) + Dockerfile
 deploy/Caddyfile   HTTPS reverse proxy for online deployments
 docker-compose.yml, docker-compose.prod.yml, .env.example
-scripts/           start, stop, verify (+ verify_logapp.py), init-env, cleanup, cleanup-images, build_report.py
+scripts/           start, stop, verify (+ verify_logapp.py, verify_connector.py), init-env, cleanup, cleanup-images, build_report.py
 logapp/            Flask log dashboard: event capture, Keycloak event sync, admin stats (PostgreSQL schema `logapp`)
 service/           Service-to-service client (client credentials grant)
-tests/             213 unit and configuration tests (pytest)
+connector/         Reusable Keycloak connector package (`keycloak_connector`), README, Flask example
+tests/             369 unit and configuration tests (pytest)
 Docs/              Quickstart, Deployment, Configuration, Architecture
 ```
 

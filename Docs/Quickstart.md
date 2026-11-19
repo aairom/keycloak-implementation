@@ -72,8 +72,10 @@ next to the application's own rows (`source` = `app` or `keycloak`). To see the 
 scripts/verify.sh
 ```
 
-Runs 44 checks (23 for the demo apps, 21 for the log dashboard through `scripts/verify_logapp.py`): OIDC discovery and JWKS, PKCE redirect, API rejects missing/invalid tokens, the authorization
+Runs 63 checks (23 for the demo apps, 21 for the log dashboard through `scripts/verify_logapp.py`, 19 for the reusable connector through `scripts/verify_connector.py`): OIDC discovery and JWKS, PKCE redirect, API rejects missing/invalid tokens, the authorization
 matrix for alice and bob (RBAC), and the service-to-service flow (client credentials, allowed and denied resources), then a scripted browser session on the dashboard (login/logout events, API access, filters, Keycloak event sync, admin statistics, access control). Expected last line: `VERIFY OK` (exit code 0).
+
+The connector part can be run alone: `.venv/bin/python scripts/verify_connector.py`. It signs in as `alice` and `bob` through the real login form with the registered `demo-logapp` client, then checks token validation, refresh, client credentials, both logout styles and the negative cases. It reads `.env` the same way as `verify_logapp.py`. The connector itself is documented in [`connector/README.md`](../connector/README.md).
 
 Not covered by `verify_logapp.py`: token refresh, expiry warning and Keycloak `REFRESH_TOKEN` events (they need a waiting time or a changed `LOGAPP_EXPIRY_WARN_SECONDS`). They are covered by unit tests in `tests/test_log_app.py` and by the manual step above. The dashboard part can be run alone: `.venv/bin/python scripts/verify_logapp.py`. It reads `.env` itself for every variable that is not already exported (`LOGAPP_PUBLIC_URL`, `DEMO_USER_PASSWORD`, `DEMO_ADMIN_PASSWORD`, optional `VERIFY_INSECURE=1` for self-signed certificates); exported variables win over `.env`.
 

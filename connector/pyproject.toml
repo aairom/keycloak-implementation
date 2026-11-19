@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "keycloak-connector"
+version = "1.0.0"
+description = "Plug-and-play Keycloak (OAuth2 / OpenID Connect) connector for web applications"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+dependencies = ["PyJWT[crypto]>=2.8", "requests>=2.31"]
+
+[tool.setuptools]
+packages = ["keycloak_connector"]
